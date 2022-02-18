@@ -316,10 +316,7 @@ function Invoke-SystemCommand
         $action = New-ScheduledTaskAction -Execute $Execute
     }
 
-    if ($null -eq (Register-ScheduledTask -Force -Action $action -TaskName $taskName -User "NT AUTHORITY\SYSTEM"))
-    {
-        throw ""
-    }
+    $null = Register-ScheduledTask -Force -Action $action -TaskName $taskName -User "NT AUTHORITY\SYSTEM"
     try
     {
         Start-ScheduledTask $taskName
