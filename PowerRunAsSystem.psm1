@@ -33,37 +33,6 @@ Add-Type @"
     using System.Security;
     using System.Runtime.InteropServices;
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-    public struct WTS_SESSION_INFO
-    {
-        public UInt32 SessionID;          
-        public string pWinStationName;
-        public byte State;
-    }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    public struct STARTUPINFO
-    {
-        public Int32 cb;
-        public string lpReserved;
-        public string lpDesktop;
-        public string lpTitle;
-        public Int32 dwX;
-        public Int32 dwY;
-        public Int32 dwXSize;
-        public Int32 dwYSize;
-        public Int32 dwXCountChars;
-        public Int32 dwYCountChars;
-        public Int32 dwFillAttribute;
-        public Int32 dwFlags;
-        public Int16 wShowWindow;
-        public Int16 cbReserved2;
-        public IntPtr lpReserved2;
-        public IntPtr hStdInput;
-        public IntPtr hStdOutput;
-        public IntPtr hStdError;
-    }
-
     public static class WTSAPI32 
     {    
         [DllImport("wtsapi32.dll", SetLastError = true)]
@@ -92,7 +61,7 @@ Add-Type @"
             uint dwCreationFlags,
             IntPtr lpEnvironment,
             IntPtr lpCurrentDirectory,
-            ref STARTUPINFO lpStartupInfo,
+            IntPtr lpStartupInfo,
             ref IntPtr lpProcessInformation
         );
 
@@ -163,21 +132,54 @@ function Invoke-InteractiveSystemProcess
         }
         try
         {
-            $sessionInfoSize = [Runtime.InteropServices.Marshal]::SizeOf([System.Type][WTS_SESSION_INFO])
-            $activeSession = -1
+            <#
+                typedef struct _WTS_SESSION_INFOA {                               
+                    // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x0
+                    // x86-64: 0x4 Bytes | Padding = 0x4 | Offset: 0x0  
+                    DWORD SessionId; 
+                    
+                    // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x4
+                    // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x8
+                    LPSTR pWinStationName;
+
+                    // x86-32: 0x1 Bytes | Padding = 0x3 | Offset: 0x8
+                    // x86-64: 0x1 Bytes | Padding = 0x7 | Offset: 0x10
+                    WTS_CONNECTSTATE_CLASS State;          
+                } WTS_SESSION_INFOA, *PWTS_SESSION_INFOA;
+
+                // x86-32 Struct Size: 0x4(+0x0) + 0x4(+0x0) + 0x1(+0x3) = 0xc (12 Bytes)
+                // x86-64 Struct Size: 0x4(+0x4) + 0x8(+0x0) + 0x1(+0x7) = 0x18 (24 Bytes)
+            #>
+            
+            #$structSize = [Runtime.InteropServices.Marshal]::SizeOf([System.Type][WTS_SESSION_INFO])
+            if ([Environment]::Is64BitProcess)
+            {
+                $structSize = 0x18  
+                $structOffset_State = 0x10  
+            }
+            else
+            {
+                $structSize = 0xc
+                $structOffset_State = 0x8
+            }
+                        
+            $activeSession = -1            
 
             for ($i; $i -lt $sessionCount; $i++)
             {
-                [IntPtr] $pOffset = [IntPtr]([Int64]$pSessionArray + ($i * $sessionInfoSize))
+                [IntPtr] $pOffset = [IntPtr]([Int64]$pSessionArray + ($i * $structSize))
 
-                $sessionInfo = [WTS_SESSION_INFO][Runtime.InteropServices.Marshal]::PtrToStructure($pOffset, [System.Type][WTS_SESSION_INFO])    
+                #$sessionInfo = [WTS_SESSION_INFO][Runtime.InteropServices.Marshal]::PtrToStructure($pOffset, [System.Type][WTS_SESSION_INFO]) 
+                $curSessionId = [System.Runtime.InteropServices.Marshal]::ReadInt32($pOffset, 0x0)
+                $curSessionState = [System.Runtime.InteropServices.Marshal]::ReadInt32($pOffset, $structOffset_State)
 
-                if ($sessionInfo.State -eq 0 <# Active #>)
-                {
-                    $activeSession = $sessionInfo.SessionID
+                $WTSActive = 0
+                if ($curSessionState -eq $WTSActive)
+                {                      
+                    $activeSession = $curSessionId
 
                     break
-                }
+                }                
             }
         }
         finally
@@ -224,33 +226,148 @@ function Invoke-InteractiveSystemProcess
         $STARTF_USESHOWWINDOW = 0x1
         $SW_SHOW = 0x5
 
+        <#
+            typedef struct _STARTUPINFOW {
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x0
+                // x86-64: 0x4 Bytes | Padding = 0x4 | Offset: 0x0
+                DWORD  cb;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x4
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x8
+                LPWSTR lpReserved;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x8
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x10
+                LPWSTR lpDesktop;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0xC
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x18
+                LPWSTR lpTitle;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x10
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x20
+                DWORD  dwX;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x14
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x24
+                DWORD  dwY;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x18
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x28
+                DWORD  dwXSize;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x1C
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x2C
+                DWORD  dwYSize;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x20
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x30
+                DWORD  dwXCountChars;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x24
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x34
+                DWORD  dwYCountChars;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x28
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x38
+                DWORD  dwFillAttribute;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x2C
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x3C
+                DWORD  dwFlags;
+
+                // x86-32: 0x2 Bytes | Padding = 0x0 | Offset: 0x30
+                // x86-64: 0x2 Bytes | Padding = 0x0 | Offset: 0x40
+                WORD   wShowWindow;
+
+                // x86-32: 0x2 Bytes | Padding = 0x0 | Offset: 0x32
+                // x86-64: 0x2 Bytes | Padding = 0x4 | Offset: 0x42
+                WORD   cbReserved2;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x34
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x48
+                LPBYTE lpReserved2;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x38
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x50
+                HANDLE hStdInput;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x3C
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x58
+                HANDLE hStdOutput;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x40
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x60
+                HANDLE hStdError;
+            } STARTUPINFOW, *LPSTARTUPINFOW;
+        
+            // x86-32 Struct Size: 0x44 (68 Bytes)
+            // x86-64 Struct Size: 0x68 (104 Bytes)            
+        #>
+
+        <#
         $startupInfo = [STARTUPINFO]::New()
         $startupInfo.cb = [Runtime.InteropServices.Marshal]::SizeOf($startupInfo)
         $startupInfo.dwFlags = $STARTF_USESHOWWINDOW
         $startupInfo.wShowWindow = $SW_SHOW
+        #>
 
-        $processInfo = [IntPtr]::Zero
-
-        if (-not [ADVAPI32]::CreateProcessAsUser(
-            $newToken,
-            "cmd.exe",
-            "/c ""start powershell.exe""",
-            [IntPtr]::Zero,
-            [IntPtr]::Zero,
-            $false,
-            0x10,
-            [IntPtr]::Zero,
-            [IntPtr]::Zero,
-            [ref]$startupInfo,
-            [ref]$processInfo
-        ))
+        if ([Environment]::Is64BitProcess)
         {
-            throw "CreateProcessAsUser"
+            $structSize = 0x68
+            $structOffset_dwFlags = 0x3c
+            $structOffset_wShowWindow = 0x40
+        }
+        else
+        {
+            $structSize = 0x44
+            $structOffset_dwFlags = 0x2c
+            $structOffset_wShowWindow = 0x30
+        }
+
+        $pSTARTUPINFO = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($structSize)
+        try
+        {
+            # ZeroMemory
+            for ($i = 0; $i -lt $structSize; $i++)
+            {
+                [System.Runtime.InteropServices.Marshal]::WriteByte($pSTARTUPINFO, $i, 0x0)    
+            }                   
+
+            [System.Runtime.InteropServices.Marshal]::WriteInt32($pSTARTUPINFO, 0x0, $structSize) # cb
+            [System.Runtime.InteropServices.Marshal]::WriteInt32($pSTARTUPINFO, $structOffset_dwFlags, $STARTF_USESHOWWINDOW) # dwFlags
+            [System.Runtime.InteropServices.Marshal]::WriteInt16($pSTARTUPINFO, $structOffset_wShowWindow, $SW_SHOW) # wShowWindow
+        
+            $processInfo = [IntPtr]::Zero
+
+            $CREATE_NEW_CONSOLE = 0x10
+
+            if (-not [ADVAPI32]::CreateProcessAsUser(
+                $newToken,
+                "cmd.exe",
+                "/c ""start powershell.exe""",
+                [IntPtr]::Zero,
+                [IntPtr]::Zero,
+                $false,
+                $CREATE_NEW_CONSOLE,
+                [IntPtr]::Zero,
+                [IntPtr]::Zero,
+                $pSTARTUPINFO,
+                [ref]$processInfo
+            ))
+            {
+                throw "CreateProcessAsUser"
+            }  
+        }
+        finally
+        {
+            [System.Runtime.InteropServices.Marshal]::FreeHGlobal($pSTARTUPINFO)
         }
     }
     catch
     {
-        ([string]::Format("$_ LastError:{0}", [Runtime.InteropServices.Marshal]::GetLastWin32Error().ToString())) | Out-File "c:\temp\error.log"
+        # Uncomment for debug
+        # ([string]::Format("$_ LastError:{0}", [Runtime.InteropServices.Marshal]::GetLastWin32Error().ToString())) | Out-File "c:\temp\error.log"
     } 
     finally
     {
