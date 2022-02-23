@@ -24,7 +24,7 @@ You might need to execute bellow command to allow unsigned script to be executed
 Set-ExecutionPolicy -ExecutionPolicy Unrestricted
 ```
 
-Or any other method you like (Ex: manually install as module, import as script etc..)
+If you don't want to use PowerShell Gallery, you can install and import this module manually and/or use it as script.
 
 ## Usage
 
