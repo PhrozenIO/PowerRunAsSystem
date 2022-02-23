@@ -6,8 +6,6 @@ This technique doesn't rely on any external tools and doesn't require a Microsof
 
 It spawns an `NT Authority/System` process using the Microsoft Windows Task Scheduler then upgrade to Interactive System Process using cool WinApi's (Run in Active Windows Session)
 
-https://user-images.githubusercontent.com/2520298/155294591-286c25ad-f3db-41ca-aafb-dee20a6d3bc5.mp4
-
 ---
 
 ## Install
