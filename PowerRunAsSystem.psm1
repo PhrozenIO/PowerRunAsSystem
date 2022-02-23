@@ -26,93 +26,84 @@
         Plus, any losses or damages occurred from using these contents or the internet
         generally.
         
+    .Ideas
+        - Capture SYSTEM Process Stdin and Stdout/err in current session.
+
 -------------------------------------------------------------------------------#>
 
-Add-Type @"
-    using System;    
-    using System.Security;
-    using System.Runtime.InteropServices;
+$global:InvokeInteractiveProcessScriptBlock = {
+    Add-Type @"
+        using System;    
+        using System.Security;
+        using System.Runtime.InteropServices;
 
-    public static class WTSAPI32 
-    {    
-        [DllImport("wtsapi32.dll", SetLastError = true)]
-        public static extern bool WTSEnumerateSessions(
-            IntPtr hServer,
-            UInt32 Reserved,
-            UInt32 Version,
-            ref IntPtr ppSessionInfo,
-            ref UInt32 pCount
-        );
+        public static class WTSAPI32 
+        {    
+            [DllImport("wtsapi32.dll", SetLastError = true)]
+            public static extern bool WTSEnumerateSessions(
+                IntPtr hServer,
+                UInt32 Reserved,
+                UInt32 Version,
+                ref IntPtr ppSessionInfo,
+                ref UInt32 pCount
+            );
 
-        [DllImport("wtsapi32.dll")]
-        public static extern void WTSFreeMemory(IntPtr pMemory);
-    }    
+            [DllImport("wtsapi32.dll")]
+            public static extern void WTSFreeMemory(IntPtr pMemory);
+        }    
 
-    public static class ADVAPI32
-    {
-        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        public static extern bool CreateProcessAsUser(
-            IntPtr hToken,
-            string lpApplicationName,
-            string lpCommandLine,
-            IntPtr lpProcessAttributes,
-            IntPtr lpThreadAttributes,
-            bool bInheritHandles,
-            uint dwCreationFlags,
-            IntPtr lpEnvironment,
-            IntPtr lpCurrentDirectory,
-            IntPtr lpStartupInfo,
-            ref IntPtr lpProcessInformation
-        );
+        public static class ADVAPI32
+        {
+            [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+            public static extern bool CreateProcessAsUser(
+                IntPtr hToken,
+                string lpApplicationName,
+                string lpCommandLine,
+                IntPtr lpProcessAttributes,
+                IntPtr lpThreadAttributes,
+                bool bInheritHandles,
+                uint dwCreationFlags,
+                IntPtr lpEnvironment,
+                IntPtr lpCurrentDirectory,
+                IntPtr lpStartupInfo,
+                ref IntPtr lpProcessInformation
+            );
 
-        [DllImport("advapi32.dll", SetLastError = true)]
-        public static extern bool OpenProcessToken(
-            IntPtr ProcessHandle,
-            UInt32 DesiredAccess,
-            ref IntPtr TokenHandle
-        );
+            [DllImport("advapi32.dll", SetLastError = true)]
+            public static extern bool OpenProcessToken(
+                IntPtr ProcessHandle,
+                UInt32 DesiredAccess,
+                ref IntPtr TokenHandle
+            );
 
-        [DllImport("advapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        public static extern bool DuplicateTokenEx(
-            IntPtr hExistingToken,
-            uint dwDesiredAccess,
-            IntPtr lpTokenAttributes,
-            byte ImpersonationLevel,
-            byte TokenType,
-            ref IntPtr phNewToken
-        );
+            [DllImport("advapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+            public static extern bool DuplicateTokenEx(
+                IntPtr hExistingToken,
+                uint dwDesiredAccess,
+                IntPtr lpTokenAttributes,
+                byte ImpersonationLevel,
+                byte TokenType,
+                ref IntPtr phNewToken
+            );
 
-        [DllImport("advapi32.dll", SetLastError = true)]
-        public static extern bool SetTokenInformation(
-            IntPtr TokenHandle,
-            byte TokenInformationClass,
-            ref UInt32 TokenInformation,
-            UInt32 TokenInformationLength
-        );
-    }
+            [DllImport("advapi32.dll", SetLastError = true)]
+            public static extern bool SetTokenInformation(
+                IntPtr TokenHandle,
+                byte TokenInformationClass,
+                ref UInt32 TokenInformation,
+                UInt32 TokenInformationLength
+            );
+        }
 
-    public static class Kernel32
-    {
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern IntPtr GetCurrentProcess();
+        public static class Kernel32
+        {
+            [DllImport("kernel32.dll", SetLastError = true)]
+            public static extern IntPtr GetCurrentProcess();
 
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern bool CloseHandle(IntPtr handle);
-    }
-"@
-
-function Invoke-InteractiveSystemProcess
-{
-    <#
-        .SYNOPSIS
-            Run system process in active Windows session.
-
-        .PARAMETER Execute
-            The program to execute in active session.
-    #>
-    param(
-        [string] $Execute = "powershell.exe"
-    )    
+            [DllImport("kernel32.dll", SetLastError = true)]
+            public static extern bool CloseHandle(IntPtr handle);
+        }
+"@  
 
     if (-not [Security.Principal.WindowsIdentity]::GetCurrent().IsSystem)
     {
@@ -225,93 +216,7 @@ function Invoke-InteractiveSystemProcess
 
         $STARTF_USESHOWWINDOW = 0x1
         $SW_SHOW = 0x5
-
-        <#
-            typedef struct _STARTUPINFOW {
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x0
-                // x86-64: 0x4 Bytes | Padding = 0x4 | Offset: 0x0
-                DWORD  cb;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x4
-                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x8
-                LPWSTR lpReserved;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x8
-                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x10
-                LPWSTR lpDesktop;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0xC
-                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x18
-                LPWSTR lpTitle;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x10
-                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x20
-                DWORD  dwX;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x14
-                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x24
-                DWORD  dwY;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x18
-                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x28
-                DWORD  dwXSize;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x1C
-                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x2C
-                DWORD  dwYSize;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x20
-                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x30
-                DWORD  dwXCountChars;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x24
-                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x34
-                DWORD  dwYCountChars;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x28
-                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x38
-                DWORD  dwFillAttribute;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x2C
-                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x3C
-                DWORD  dwFlags;
-
-                // x86-32: 0x2 Bytes | Padding = 0x0 | Offset: 0x30
-                // x86-64: 0x2 Bytes | Padding = 0x0 | Offset: 0x40
-                WORD   wShowWindow;
-
-                // x86-32: 0x2 Bytes | Padding = 0x0 | Offset: 0x32
-                // x86-64: 0x2 Bytes | Padding = 0x4 | Offset: 0x42
-                WORD   cbReserved2;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x34
-                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x48
-                LPBYTE lpReserved2;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x38
-                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x50
-                HANDLE hStdInput;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x3C
-                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x58
-                HANDLE hStdOutput;
-
-                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x40
-                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x60
-                HANDLE hStdError;
-            } STARTUPINFOW, *LPSTARTUPINFOW;
-        
-            // x86-32 Struct Size: 0x44 (68 Bytes)
-            // x86-64 Struct Size: 0x68 (104 Bytes)            
-        #>
-
-        <#
-        $startupInfo = [STARTUPINFO]::New()
-        $startupInfo.cb = [Runtime.InteropServices.Marshal]::SizeOf($startupInfo)
-        $startupInfo.dwFlags = $STARTF_USESHOWWINDOW
-        $startupInfo.wShowWindow = $SW_SHOW
-        #>
-
+    
         if ([Environment]::Is64BitProcess)
         {
             $structSize = 0x68
@@ -398,6 +303,17 @@ function Test-Administrator
     )    
 }
 
+function Get-RandomString
+{
+    <#
+        .SYNOPSIS
+            Return a random string composed of a-Z and 0-9
+    #>
+    $charList = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+    return -join ((1..15) | ForEach-Object { Get-Random -Input $charList.ToCharArray() })
+}
+
 function Invoke-SystemCommand
 {
     <#
@@ -420,9 +336,7 @@ function Invoke-SystemCommand
         throw "You must be Administrator to run system commands."
     }
 
-    $charList = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-    $taskName = -join ((1..15) | ForEach-Object { Get-Random -Input $charList.ToCharArray() })
+    $taskName = Get-RandomString
     
     if ($Argument)
     {
@@ -444,7 +358,87 @@ function Invoke-SystemCommand
     }
 }
 
+function Invoke-InteractiveSystemPowerShell
+{
+    <#
+        .SYNOPSIS
+            Invoke a new Interactive System Process using a cool trick.    
+    #>
+
+    $secondStageBlock = { 
+        try
+        {        
+            $pipeClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", "PIPENAME", [System.IO.Pipes.PipeDirection]::In)
+
+            $pipeClient.Connect(5 * 1000)
+
+            $reader = New-Object System.IO.StreamReader($pipeClient)
+
+            $nextStage = $reader.ReadLine()
+
+            Invoke-Expression([System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String($nextStage)))            
+        }
+        finally
+        {
+            if ($reader)
+            {
+                $reader.Close()
+            }
+
+            if ($pipeClient)
+            {
+                $pipeClient.Dispose()
+            }            
+        }        
+    }
+
+    $pipeName = Get-RandomString
+
+    $encodedBlock =  [Convert]::ToBase64String(
+        [System.Text.Encoding]::ASCII.GetBytes(
+            ([string]$secondStageBlock).replace('PIPENAME', $pipeName)
+        )
+    )    
+
+    # If using bellow technique, replace ::ASCII by ::Unicode above.
+    #$command = [string]::Format(
+    #    "-NoProfile -EncodedCommand {0}""", 
+    #    $encodedBlock
+    #)
+
+    $command = [string]::Format(
+        "Invoke-Expression([System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String('{0}')))",
+        $encodedBlock
+    )
+
+    Invoke-SystemCommand -Argument $command
+
+    try
+    {
+        $pipeServer = New-Object System.IO.Pipes.NamedPipeServerStream($pipeName, [System.IO.Pipes.PipeDirection]::Out)
+
+        $pipeServer.WaitForConnection()
+
+        $writer = New-Object System.IO.StreamWriter($pipeServer)
+        $writer.AutoFlush = $true
+
+        $writer.WriteLine([Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes(([string]$global:InvokeInteractiveProcessScriptBlock))))
+    }
+    finally
+    {
+        if ($writer)
+        {
+            $writer.Close()
+        }
+
+        if ($pipeServer)
+        {
+            $pipeServer.Dispose()
+        }
+    }
+}
+
 try {  
     Export-ModuleMember -Function Invoke-SystemCommand
-    Export-ModuleMember -Function Invoke-InteractiveSystemProcess
+    Export-ModuleMember -Function Invoke-InteractiveSystemPowerShell
 } catch {}
