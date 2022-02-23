@@ -18,11 +18,17 @@ You can install this module very easily using PowerShell Gallery:
 Install-Module -Name PowerRunAsSystem
 ```
 
+You might need to execute bellow command to allow unsigned script to be executed:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy Unrestricted
+```
+
 Or any other method you like (Ex: manually install as module, import as script etc..)
 
 ## Usage
 
-⚠️ Both commands requires **Administrator Privilege**.
+⚠️ Both commands requires **Administrator Privilege**. 
 
 ### Invoke-SystemCommand
 
