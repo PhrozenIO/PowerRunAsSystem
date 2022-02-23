@@ -8,25 +8,29 @@ It spawns an `NT Authority/System` process using the Microsoft Windows Task Sche
 
 ---
 
-## Example (Spawn a new Interactive PowerShell)
+## Install
 
-```PowerShell
-IEX(Get-Content PowerRunAsSystem.psm1 -Raw)
+You can install this module very easily using PowerShell Gallery:
 
-Invoke-SystemCommand -Argument "IEX(Get-Content C:\Temp\PowerRunAsSystem.psm1 -Raw); Invoke-InteractiveSystemProcess"
+```powershell
+Install-Module -Name PowerRunAsSystem
 ```
 
----
+Or any other method you like (Ex: manually install as module, import as script etc..)
 
-https://user-images.githubusercontent.com/2520298/154730781-a2c6d7e2-ac9a-40a6-a17d-b8e91fd59fb9.mp4
+## Usage
 
-## Available Functions
+⚠️ Both commands requires **Administrator Privilege**.
 
-### Invoke-SystemCommand (Requires to be Administrator User)
+### Invoke-SystemCommand
 
-Spawn a new SYSTEM Process running in Microsoft Windows Session Id `0` which is not visible on current Desktop.
+```PowerShell
+Invoke-SystemCommand -Execute "powershell.exe" -Argument "whoami \| Out-File C:\result.txt"
+```
 
-This function is expected to be used in addition of `Invoke-InteractiveSystemProcess` to spawn a SYSTEM Process in active Windows Session (Active Desktop)
+Create a new process (default: `powershell.exe`) running under the context of `NT AUTHORITY/SYSTEM` in Microsoft Windows session id `0`
+
+⚠️ Notice: Session id `0` is not directly accessible through your active desktop, any process running under another session than the active one wont be visible. If you want to spawn a new SYSTEM process under active session, use `Invoke-InteractiveSystemPowerShell` command instead.
 
 ##### ⚙️ Supported Options:
 
@@ -37,10 +41,14 @@ This function is expected to be used in addition of `Invoke-InteractiveSystemPro
 
 ---
 
-### Invoke-InteractiveSystemProcess (Requires to be SYSTEM User)
+### Invoke-InteractiveSystemPowerShell
 
-##### ⚙️ Supported Options:
+```PowerShell
+Invoke-InteractiveSystemPowerShell
+```
 
-| Parameter               | Type             | Default                                        | Description  |
-|-------------------------|------------------|------------------------------------------------|--------------|
-| Execute                 | String           | powershell.exe                                 | Program to execute as SYSTEM (Active Session)  |
+Create a new **PowerShell** instance running under the context of `NT AUTHORITY/SYSTEM` and visible on your desktop (active session)
+
+## Future Ideas
+
+- Redirect Stdin and Stdout/Stderr to caller (Administrator <--> System).
