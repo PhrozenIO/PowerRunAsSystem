@@ -216,6 +216,85 @@ $global:InvokeInteractiveProcessScriptBlock = {
 
         $STARTF_USESHOWWINDOW = 0x1
         $SW_SHOW = 0x5
+
+        <#
+            typedef struct _STARTUPINFOW {
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x0
+                // x86-64: 0x4 Bytes | Padding = 0x4 | Offset: 0x0
+                DWORD  cb;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x4
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x8
+                LPWSTR lpReserved;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x8
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x10
+                LPWSTR lpDesktop;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0xC
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x18
+                LPWSTR lpTitle;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x10
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x20
+                DWORD  dwX;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x14
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x24
+                DWORD  dwY;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x18
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x28
+                DWORD  dwXSize;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x1C
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x2C
+                DWORD  dwYSize;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x20
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x30
+                DWORD  dwXCountChars;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x24
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x34
+                DWORD  dwYCountChars;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x28
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x38
+                DWORD  dwFillAttribute;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x2C
+                // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x3C
+                DWORD  dwFlags;
+
+                // x86-32: 0x2 Bytes | Padding = 0x0 | Offset: 0x30
+                // x86-64: 0x2 Bytes | Padding = 0x0 | Offset: 0x40
+                WORD   wShowWindow;
+
+                // x86-32: 0x2 Bytes | Padding = 0x0 | Offset: 0x32
+                // x86-64: 0x2 Bytes | Padding = 0x4 | Offset: 0x42
+                WORD   cbReserved2;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x34
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x48
+                LPBYTE lpReserved2;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x38
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x50
+                HANDLE hStdInput;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x3C
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x58
+                HANDLE hStdOutput;
+
+                // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x40
+                // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x60
+                HANDLE hStdError;
+            } STARTUPINFOW, *LPSTARTUPINFOW;
+
+            // x86-32 Struct Size: 0x44 (68 Bytes)
+            // x86-64 Struct Size: 0x68 (104 Bytes)            
+        #>
     
         if ([Environment]::Is64BitProcess)
         {
