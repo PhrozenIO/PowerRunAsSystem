@@ -28,7 +28,7 @@ If you don't want to use PowerShell Gallery, you can install and import this mod
 
 ## Usage
 
-⚠️ Both commands requires **Administrator Privilege**. 
+⚠️ All commands requires **Administrator Privilege**. 
 
 ### Invoke-SystemCommand
 
@@ -47,6 +47,8 @@ Create a new process (default: `powershell.exe`) running under the context of `N
 | Execute                 | String           | powershell.exe                                 | Program to execute as SYSTEM (Session `0`)  |
 | Argument                | String           | -Command "whoami \| Out-File C:\result.txt"    | Optional argument to run with program |
 
+⚠️ You cannot run this function if current thread is impersonating another user. Use `Invoke-RevertToSelf` first.
+
 ---
 
 ### Invoke-InteractiveSystemPowerShell
@@ -56,6 +58,42 @@ Invoke-InteractiveSystemPowerShell
 ```
 
 Create a new **PowerShell** instance running under the context of `NT AUTHORITY/SYSTEM` and visible on your desktop (active session)
+
+⚠️ You cannot run this function if current thread is impersonating another user. Use `Invoke-RevertToSelf` first.
+
+### Invoke-ImpersonateSystem
+
+```PowerShell
+Invoke-ImpersonateSystem
+```
+
+Impersonate **SYSTEM User** on current thread (current PowerShell thread) using **ImpersonateNamedPipeClient** technique.
+
+After impersonating user, you can use `Invoke-ImpersonatedProcess` to spawn an interactive process as SYSTEM.
+
+### Invoke-ImpersonatedProcess
+
+```PowerShell
+Invoke-ImpersonatedProcess
+```
+
+Create a new **PowerShell** instance running under the context of `NT AUTHORITY/SYSTEM` and visible on your desktop (active session)
+
+##### ⚙️ Supported Options:
+
+| Parameter               | Type             | Default                                        | Description  |
+|-------------------------|------------------|------------------------------------------------|--------------|
+| CommandLine             | String           | powershell.exe                                 | Program to execute as SYSTEM (Active Session)  |
+
+### Invoke-RevertToSelf
+
+```PowerShell
+Invoke-RevertToSelf
+```
+
+Stop impersonating user.
+
+⚠️ You cannot run this function if you are not currently impersonating a user. Use `Invoke-ImpersonateSystem` first.
 
 ## Future Ideas
 
