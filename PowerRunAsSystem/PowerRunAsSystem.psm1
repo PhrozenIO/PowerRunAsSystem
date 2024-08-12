@@ -304,7 +304,7 @@ $global:InvokeInteractiveProcessScriptBlock = {
                         
             $activeSession = -1            
 
-            for ($i; $i -lt $sessionCount; $i++)
+            for ($i = 0; $i -lt $sessionCount; $i++)
             {
                 [IntPtr] $pOffset = [IntPtr]([Int64]$pSessionArray + ($i * $structSize))
 
