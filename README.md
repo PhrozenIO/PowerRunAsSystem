@@ -49,8 +49,6 @@ Spawn a new process as the SYSTEM user via Task Scheduler. Note that the SYSTEM 
 | Application             | String           | powershell.exe                                 | Program to execute         |
 | Argument                | String           | -Command "whoami \| Out-File C:\result.txt"    | Optional program arguments |
 
-⚠️ You cannot run this function if current thread is impersonating another user. Use `Invoke-RevertToSelf` first.
-
 ### `Invoke-InteractiveSystemProcess`
 
 Spawn a new interactive process as the SYSTEM user, which will be tied to the active terminal session and, if selected, visible on the current desktop.
