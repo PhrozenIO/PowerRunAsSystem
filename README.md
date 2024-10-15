@@ -59,13 +59,13 @@ This can be particularly useful in scenarios where an interactive SYSTEM process
 
 #### ⚙️ Available Arguments
 
-| Parameter               | Type             | Default                                        | Description                      |
-|-------------------------|------------------|------------------------------------------------|----------------------------------|
-| CommandLine             | String           | powershell.exe                                 | The complete command line to execute. |
-| Hide                    | Switch           | None                                           | If present, the process is not visible. |
+| Parameter               | Type             | Default                                        | Description                                                                                    |
+|-------------------------|------------------|------------------------------------------------|------------------------------------------------------------------------------------------------|
+| CommandLine             | String           | powershell.exe                                 | The complete command line to execute.                                                          |
+| Hide                    | Switch           | None                                           | If present, the process is not visible.                                                        |
 | RedirectKind            | Choice           | None                                           | If the process input/output needs to be redirected to an external source (as discussed below)… |
-| Address                 | String           | None                                           | Used if the **RedirectKind** is set (as described below). |
-| Port                    | Int (R: 0-65535) | None                                           | Used if the **RedirectKind** is set (as described below). |
+| Address                 | String           | None                                           | Used if the **RedirectKind** is set (as described below).                                      |
+| Port                    | Int (R: 0-65535) | None                                           | Used if the **RedirectKind** is set (as described below).                                      |
 
 #### Advanced Usage : RedirectKind Flag
 
@@ -73,11 +73,27 @@ This can be particularly useful in scenarios where an interactive SYSTEM process
 
 No specific redirection is used; the process is spawned normally. To interact with the process, you must do so through the desktop.
 
+If RedirectKind Flag is specified, the `stdout`, `stderr`, and `stdin` of the process are redirected to a network socket. This setup enables interaction with the spawned process without requiring access to the desktop, which is particularly useful when the process is initiated from an SSH or WinRM session.
+
+#### `Bind`
+
+Spawn your interactive SYSTEM process:
+
+````powershell
+Invoke-InteractiveSystemProcess -RedirectKind "Bind" -Address "0.0.0.0" -Port 4444
+````
+
+In the context of a bind shell, the address specifies the network interface to bind to. Using `0.0.0.0` means the shell will listen on all available network interfaces, while `127.0.0.1` restricts it to the loopback interface, making it accessible only from the local machine.
+
+Then, with netcat, connect to listener:
+
+`````bash
+nc 127.0.0.1 4444
+`````
+
+In the context of a bind shell, it is important to note that the temporary SYSTEM process acting as the **launcher** will remain in a hanging state until a client connects to the listener. Only one client can connect to the listener, only once. Once connected, an interactive SYSTEM process will be established. When the session/process, both the client and listener will be released, marking the termination of the **launcher**.
+
 ##### `Reverse`
-
-The `stdout`, `stderr`, and `stdin` of the process are redirected to a network socket in reverse mode (client -> server). This setup enables interaction with the spawned process without requiring access to the desktop, which is particularly useful when the process is initiated from an SSH or WinRM session.
-
-Example:
 
 Create a new Netcat listener (adapt the command according to your operating system and version of Netcat):
 ````bash
@@ -89,6 +105,8 @@ Then, spawn your interactive SYSTEM process:
 ````powershell
 Invoke-InteractiveSystemProcess -RedirectKind "Reverse" -Address "127.0.0.1" -Port 4444
 ````
+
+In the context of a reverse shell, it is important to note that a listener must be started before executing the reverse shell command. If the listener is not active, the attempt to spawn an interactive SYSTEM process will fail.
 
 Enjoy your SYSTEM shell 🐚
 

